@@ -1,0 +1,425 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Complaint Details — SCMS</title>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="css/style.css">
+  <link rel="stylesheet" href="css/responsive.css">
+  <script src="https://unpkg.com/lucide@latest/dist/umd/lucide.js"></script>
+</head>
+<body>
+  <div class="dashboard-layout">
+    <aside class="sidebar" id="sidebar"></aside>
+    <div class="main-content">
+      <header class="topbar" id="topbar"></header>
+      <main class="page-content" id="page-content"></main>
+    </div>
+  </div>
+
+  <script src="js/storage.js"></script>
+  <script src="js/auth.js"></script>
+  <script src="js/ui.js"></script>
+  <script>
+    document.addEventListener('DOMContentLoaded', () => {
+      const session = requireAuth(['citizen', 'staff', 'admin']);
+      if (!session) return;
+
+      const params = new URLSearchParams(window.location.search);
+      const complaintId = params.get('id');
+
+      // Determine sidebar context
+      if (session.role === 'citizen') renderDashboardLayout('citizen', 'my-complaints');
+      else if (session.role === 'staff') renderDashboardLayout('staff', 'assigned');
+      else renderDashboardLayout('admin', 'complaints');
+
+      const content = document.getElementById('page-content');
+
+      if (!complaintId) {
+        content.innerHTML = emptyState('alert-circle', 'No Complaint Selected', 'Please select a complaint from the list.', `<a href="my-complaints.html" class="btn btn-primary btn-sm">Go to Complaints</a>`);
+        lucide.createIcons();
+        return;
+      }
+
+      const complaint = getComplaintById(complaintId);
+      if (!complaint) {
+        content.innerHTML = emptyState('alert-circle', 'Complaint Not Found', `No complaint found with ID: ${complaintId}`);
+        lucide.createIcons();
+        return;
+      }
+
+      // Access control: citizens can only view their own complaints
+      if (session.role === 'citizen' && complaint.citizenId !== session.userId) {
+        content.innerHTML = emptyState('lock', 'Access Denied', 'You can only view your own complaints.');
+        lucide.createIcons();
+        return;
+      }
+
+      const citizen = getUserById(complaint.citizenId);
+      const dept = complaint.departmentId ? getDepartmentById(complaint.departmentId) : null;
+      const staff = complaint.assignedStaffId ? getUserById(complaint.assignedStaffId) : null;
+      const history = getComplaintHistory(complaintId);
+
+      // Back link
+      let backHref = 'my-complaints.html';
+      if (session.role === 'staff') backHref = 'assigned-complaints.html';
+      if (session.role === 'admin') backHref = 'manage-complaints.html';
+
+      content.innerHTML = `
+        <div class="page-header">
+          <div>
+            <a href="${backHref}" class="btn btn-ghost btn-sm" style="margin-bottom:8px"><i data-lucide="arrow-left"></i> Back</a>
+            <h1 style="display:flex;align-items:center;gap:12px;">
+              <span class="complaint-id-badge" style="font-size:0.9rem;padding:4px 12px;">${complaint.id}</span>
+              ${complaint.title}
+            </h1>
+          </div>
+          <div style="display:flex;gap:8px;align-items:center;">
+            ${statusBadge(complaint.status)}
+            ${priorityBadge(complaint.priority)}
+          </div>
+        </div>
+
+        <div class="detail-grid">
+          <div>
+            <div class="card" style="margin-bottom:20px">
+              <div class="card-header"><h3>Complaint Details</h3></div>
+              <div class="card-body">
+                <div class="detail-field">
+                  <div class="detail-label">Description</div>
+                  <div class="detail-value">${complaint.description}</div>
+                </div>
+                <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;">
+                  <div class="detail-field">
+                    <div class="detail-label">Category</div>
+                    <div class="detail-value"><i data-lucide="${getCategoryIcon(complaint.category)}" style="width:14px;height:14px;vertical-align:middle;margin-right:4px;"></i> ${complaint.category}</div>
+                  </div>
+                  <div class="detail-field">
+                    <div class="detail-label">Location</div>
+                    <div class="detail-value"><i data-lucide="map-pin" style="width:14px;height:14px;vertical-align:middle;margin-right:4px;"></i> ${complaint.location}</div>
+                  </div>
+                  <div class="detail-field">
+                    <div class="detail-label">Submitted By</div>
+                    <div class="detail-value">${citizen ? citizen.name : 'Unknown'}</div>
+                  </div>
+                  <div class="detail-field">
+                    <div class="detail-label">Submitted On</div>
+                    <div class="detail-value">${formatDateTime(complaint.createdAt)}</div>
+                  </div>
+                  <div class="detail-field">
+                    <div class="detail-label">Department</div>
+                    <div class="detail-value">${dept ? dept.name : '<span style="color:var(--text-muted)">Not assigned</span>'}</div>
+                  </div>
+                  <div class="detail-field">
+                    <div class="detail-label">Assigned Staff</div>
+                    <div class="detail-value">${staff ? staff.name : '<span style="color:var(--text-muted)">Not assigned</span>'}</div>
+                  </div>
+                </div>
+                ${complaint.resolutionNotes ? `
+                  <div class="detail-field" style="margin-top:8px;padding-top:16px;border-top:1px solid var(--border-light)">
+                    <div class="detail-label">Resolution Notes</div>
+                    <div class="detail-value">${complaint.resolutionNotes}</div>
+                  </div>
+                ` : ''}
+                ${complaint.image ? `
+                  <div class="detail-field" style="margin-top:8px;">
+                    <div class="detail-label">Attached Image</div>
+                    <img src="${complaint.image}" style="max-width:400px;border-radius:var(--radius);margin-top:8px;border:1px solid var(--border);" alt="Complaint attachment">
+                  </div>
+                ` : ''}
+              </div>
+            </div>
+
+            ${session.role === 'citizen' && complaint.status === 'Pending' ? `
+              <div class="action-btns" style="margin-bottom:20px;">
+                <button class="btn btn-secondary" onclick="editComplaint('${complaint.id}')"><i data-lucide="edit-2"></i> Edit Details</button>
+                <button class="btn btn-danger" onclick="deleteMyComplaint('${complaint.id}')"><i data-lucide="trash-2"></i> Delete Complaint</button>
+              </div>
+            ` : ''}
+
+            ${session.role === 'staff' ? `
+              <div class="card" style="margin-bottom:20px; border-left: 4px solid var(--primary);">
+                <div class="card-header">
+                  <h3><i data-lucide="wrench" style="width:18px;height:18px;vertical-align:middle;margin-right:6px;color:var(--primary);"></i> Staff Action: Update Complaint</h3>
+                </div>
+                <div class="card-body">
+                  <div class="form-group" style="margin-bottom:14px;">
+                    <label class="form-label" for="staff-status-select">Update Status</label>
+                    <select id="staff-status-select" class="form-control">
+                      <option value="Assigned" ${complaint.status === 'Assigned' ? 'selected' : ''}>Assigned (Under Review)</option>
+                      <option value="In Progress" ${complaint.status === 'In Progress' ? 'selected' : ''}>In Progress (Work Underway)</option>
+                      <option value="Resolved" ${complaint.status === 'Resolved' ? 'selected' : ''}>Resolved (Issue Fixed)</option>
+                    </select>
+                  </div>
+                  <div class="form-group" style="margin-bottom:14px;">
+                    <label class="form-label" for="staff-remarks">Staff Remarks / Update Notes</label>
+                    <input type="text" id="staff-remarks" class="form-control" placeholder="Brief note explaining the progress or status change..." />
+                  </div>
+                  <div class="form-group" style="margin-bottom:16px;">
+                    <label class="form-label" for="staff-resolution-notes">Resolution Notes (Optional for in-progress, required when resolving)</label>
+                    <textarea id="staff-resolution-notes" class="form-control" rows="3" placeholder="Provide full technical or field details of the resolution...">${complaint.resolutionNotes || ''}</textarea>
+                  </div>
+                  <button class="btn btn-primary" onclick="handleStaffUpdate('${complaint.id}')">
+                    <i data-lucide="check-circle"></i> Save & Update Status
+                  </button>
+                </div>
+              </div>
+            ` : ''}
+
+            ${session.role === 'admin' ? `
+              <div class="card" style="margin-bottom:20px; border-left: 4px solid var(--teal);">
+                <div class="card-header">
+                  <h3><i data-lucide="shield-check" style="width:18px;height:18px;vertical-align:middle;margin-right:6px;color:var(--teal);"></i> Admin Management Panel</h3>
+                </div>
+                <div class="card-body">
+                  <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:14px;">
+                    <div class="form-group">
+                      <label class="form-label" for="admin-dept-select">Assign Department</label>
+                      <select id="admin-dept-select" class="form-control" onchange="updateStaffDropdown(this.value)">
+                        <option value="">-- Select Department --</option>
+                        ${getDepartments().map(d => `<option value="${d.id}" ${complaint.departmentId === d.id ? 'selected' : ''}>${d.name}</option>`).join('')}
+                      </select>
+                    </div>
+                    <div class="form-group">
+                      <label class="form-label" for="admin-staff-select">Assign Staff Member</label>
+                      <select id="admin-staff-select" class="form-control">
+                        <option value="">-- Unassigned --</option>
+                      </select>
+                    </div>
+                  </div>
+                  <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:14px;">
+                    <div class="form-group">
+                      <label class="form-label" for="admin-status-select">Status</label>
+                      <select id="admin-status-select" class="form-control">
+                        <option value="Pending" ${complaint.status === 'Pending' ? 'selected' : ''}>Pending</option>
+                        <option value="Assigned" ${complaint.status === 'Assigned' ? 'selected' : ''}>Assigned</option>
+                        <option value="In Progress" ${complaint.status === 'In Progress' ? 'selected' : ''}>In Progress</option>
+                        <option value="Resolved" ${complaint.status === 'Resolved' ? 'selected' : ''}>Resolved</option>
+                        <option value="Closed" ${complaint.status === 'Closed' ? 'selected' : ''}>Closed</option>
+                      </select>
+                    </div>
+                    <div class="form-group">
+                      <label class="form-label" for="admin-priority-select">Priority</label>
+                      <select id="admin-priority-select" class="form-control">
+                        <option value="Low" ${complaint.priority === 'Low' ? 'selected' : ''}>Low</option>
+                        <option value="Medium" ${complaint.priority === 'Medium' ? 'selected' : ''}>Medium</option>
+                        <option value="High" ${complaint.priority === 'High' ? 'selected' : ''}>High</option>
+                        <option value="Urgent" ${complaint.priority === 'Urgent' ? 'selected' : ''}>Urgent</option>
+                      </select>
+                    </div>
+                  </div>
+                  <div class="form-group" style="margin-bottom:14px;">
+                    <label class="form-label" for="admin-remarks">Admin Remarks / Update History</label>
+                    <input type="text" id="admin-remarks" class="form-control" placeholder="Reason or remarks for this update..." />
+                  </div>
+                  <div class="form-group" style="margin-bottom:16px;">
+                    <label class="form-label" for="admin-res-notes">Resolution Notes</label>
+                    <textarea id="admin-res-notes" class="form-control" rows="2" placeholder="Official resolution record...">${complaint.resolutionNotes || ''}</textarea>
+                  </div>
+                  <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px;">
+                    <button class="btn btn-primary" onclick="handleAdminUpdate('${complaint.id}')">
+                      <i data-lucide="save"></i> Save Changes
+                    </button>
+                    <button class="btn btn-danger" onclick="deleteMyComplaint('${complaint.id}')">
+                      <i data-lucide="trash-2"></i> Delete Complaint
+                    </button>
+                  </div>
+                </div>
+              </div>
+            ` : ''}
+          </div>
+
+          <div>
+            <div class="card">
+              <div class="card-header"><h3>Status Timeline</h3></div>
+              <div class="card-body">
+                ${history.length > 0 ? `
+                  <div class="timeline">
+                    ${history.map((h, i) => {
+                      const user = getUserById(h.updatedBy);
+                      const isLast = i === history.length - 1;
+                      return `
+                        <div class="timeline-item ${isLast ? 'active' : 'completed'}">
+                          <div class="timeline-dot"></div>
+                          <div class="timeline-status">${h.newStatus}</div>
+                          <div class="timeline-remarks">${h.remarks || '—'}</div>
+                          <div class="timeline-date">${formatDateTime(h.updatedAt)}</div>
+                          <div class="timeline-user">by ${user ? user.name : 'System'}</div>
+                        </div>
+                      `;
+                    }).join('')}
+                  </div>
+                ` : '<p style="color:var(--text-muted);font-size:0.9rem;">No history entries yet.</p>'}
+              </div>
+            </div>
+
+            <div class="card" style="margin-top:16px">
+              <div class="card-header"><h3>Quick Info</h3></div>
+              <div class="card-body">
+                <div class="detail-field">
+                  <div class="detail-label">Last Updated</div>
+                  <div class="detail-value">${formatDateTime(complaint.updatedAt)}</div>
+                </div>
+                <div class="detail-field">
+                  <div class="detail-label">Time Since Submission</div>
+                  <div class="detail-value">${timeAgo(complaint.createdAt)}</div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      `;
+      lucide.createIcons();
+
+      // If admin, populate staff dropdown for current department
+      if (session.role === 'admin') {
+        updateStaffDropdown(complaint.departmentId, complaint.assignedStaffId);
+      }
+    });
+
+    function updateStaffDropdown(deptId, preselectedStaffId = null) {
+      const staffSelect = document.getElementById('admin-staff-select');
+      if (!staffSelect) return;
+      const allStaff = getUsers().filter(u => u.role === 'staff' && u.active);
+      const filteredStaff = deptId ? allStaff.filter(u => u.departmentId === deptId) : allStaff;
+
+      staffSelect.innerHTML = '<option value="">-- Unassigned --</option>' +
+        filteredStaff.map(s => `<option value="${s.id}" ${s.id === preselectedStaffId ? 'selected' : ''}>${s.name} (${s.email})</option>`).join('');
+    }
+
+    function handleStaffUpdate(complaintId) {
+      const session = getSession();
+      const current = getComplaintById(complaintId);
+      if (!current) return;
+
+      const newStatus = document.getElementById('staff-status-select').value;
+      const remarks = document.getElementById('staff-remarks').value.trim() || `Status updated to ${newStatus}`;
+      const resolutionNotes = document.getElementById('staff-resolution-notes').value.trim();
+
+      if (newStatus === 'Resolved' && !resolutionNotes && !current.resolutionNotes) {
+        showToast('Please provide resolution notes before resolving.', 'warning');
+        return;
+      }
+
+      updateComplaint(complaintId, {
+        status: newStatus,
+        resolutionNotes: resolutionNotes || current.resolutionNotes
+      });
+
+      addComplaintHistory({
+        id: generateId('h_'),
+        complaintId,
+        previousStatus: current.status,
+        newStatus,
+        remarks,
+        updatedBy: session.userId,
+        updatedAt: now()
+      });
+
+      showToast('Complaint status updated successfully!', 'success');
+      setTimeout(() => window.location.reload(), 600);
+    }
+
+    function handleAdminUpdate(complaintId) {
+      const session = getSession();
+      const current = getComplaintById(complaintId);
+      if (!current) return;
+
+      const deptId = document.getElementById('admin-dept-select').value || null;
+      const staffId = document.getElementById('admin-staff-select').value || null;
+      const newStatus = document.getElementById('admin-status-select').value;
+      const priority = document.getElementById('admin-priority-select').value;
+      const remarks = document.getElementById('admin-remarks').value.trim() || 'Admin update';
+      const resolutionNotes = document.getElementById('admin-res-notes').value.trim();
+
+      updateComplaint(complaintId, {
+        departmentId: deptId,
+        assignedStaffId: staffId,
+        status: newStatus,
+        priority,
+        resolutionNotes: resolutionNotes || current.resolutionNotes
+      });
+
+      if (current.status !== newStatus || current.assignedStaffId !== staffId || current.departmentId !== deptId) {
+        let historyRemarks = remarks;
+        if (staffId && staffId !== current.assignedStaffId) {
+          const staffUser = getUserById(staffId);
+          historyRemarks += ` (Assigned to ${staffUser ? staffUser.name : staffId})`;
+        }
+        addComplaintHistory({
+          id: generateId('h_'),
+          complaintId,
+          previousStatus: current.status,
+          newStatus,
+          remarks: historyRemarks,
+          updatedBy: session.userId,
+          updatedAt: now()
+        });
+      }
+
+      showToast('Complaint updated successfully!', 'success');
+      setTimeout(() => window.location.reload(), 600);
+    }
+
+    function editComplaint(id) {
+      const complaint = getComplaintById(id);
+      if (!complaint) return;
+
+      const bodyHTML = `
+        <div class="form-group" style="margin-bottom:14px;">
+          <label class="form-label">Title</label>
+          <input type="text" id="edit-title" class="form-control" value="${complaint.title}">
+        </div>
+        <div class="form-group" style="margin-bottom:14px;">
+          <label class="form-label">Location</label>
+          <input type="text" id="edit-location" class="form-control" value="${complaint.location}">
+        </div>
+        <div class="form-group" style="margin-bottom:14px;">
+          <label class="form-label">Description</label>
+          <textarea id="edit-desc" class="form-control" rows="4">${complaint.description}</textarea>
+        </div>
+      `;
+
+      const footerHTML = `
+        <button class="btn btn-secondary" onclick="closeModal()">Cancel</button>
+        <button class="btn btn-primary" onclick="saveComplaintEdit('${complaint.id}')">Save Changes</button>
+      `;
+
+      showModal('Edit Complaint', bodyHTML, footerHTML);
+    }
+
+    function saveComplaintEdit(id) {
+      const title = document.getElementById('edit-title').value.trim();
+      const location = document.getElementById('edit-location').value.trim();
+      const description = document.getElementById('edit-desc').value.trim();
+
+      if (!title || !description || !location) {
+        showToast('All fields are required.', 'error');
+        return;
+      }
+
+      updateComplaint(id, { title, location, description });
+      closeModal();
+      showToast('Complaint details updated.', 'success');
+      setTimeout(() => window.location.reload(), 500);
+    }
+
+    function deleteMyComplaint(id) {
+      showConfirmDialog(
+        'Delete Complaint',
+        'Are you sure you want to delete this complaint? This action cannot be undone.',
+        () => {
+          deleteComplaint(id);
+          showToast('Complaint deleted successfully.', 'success');
+          const session = getSession();
+          const target = session.role === 'admin' ? 'manage-complaints.html' : 'my-complaints.html';
+          setTimeout(() => window.location.href = target, 800);
+        },
+        'Delete',
+        'danger'
+      );
+    }
+  </script>
+</body>
+</html>

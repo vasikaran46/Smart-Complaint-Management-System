@@ -1,0 +1,102 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Settings — SCMS</title>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="css/style.css">
+  <link rel="stylesheet" href="css/responsive.css">
+  <script src="https://unpkg.com/lucide@latest/dist/umd/lucide.js"></script>
+</head>
+<body>
+  <div class="dashboard-layout">
+    <aside class="sidebar" id="sidebar"></aside>
+    <div class="main-content">
+      <header class="topbar" id="topbar"></header>
+      <main class="page-content" id="page-content"></main>
+    </div>
+  </div>
+
+  <script src="js/storage.js"></script>
+  <script src="js/auth.js"></script>
+  <script src="js/ui.js"></script>
+  <script>
+    document.addEventListener('DOMContentLoaded', () => {
+      const session = requireAuth(['citizen', 'staff', 'admin']);
+      if (!session) return;
+      renderDashboardLayout(session.role, 'settings');
+
+      document.getElementById('page-content').innerHTML = `
+        <div class="page-header"><h1>Settings</h1></div>
+
+        <div style="max-width:720px;">
+          <div class="card" style="margin-bottom:20px;">
+            <div class="card-header"><h3>Account Information</h3></div>
+            <div class="card-body">
+              <div class="detail-field">
+                <div class="detail-label">Account Type</div>
+                <div class="detail-value"><span class="badge badge-primary">${capitalize(session.role)}</span></div>
+              </div>
+              <div class="detail-field">
+                <div class="detail-label">Email</div>
+                <div class="detail-value">${session.email}</div>
+              </div>
+              <div class="detail-field">
+                <div class="detail-label">Session Started</div>
+                <div class="detail-value">${formatDateTime(session.loggedInAt)}</div>
+              </div>
+            </div>
+          </div>
+
+          <div class="card" style="margin-bottom:20px;">
+            <div class="card-header"><h3>Demo Data Management</h3></div>
+            <div class="card-body">
+              <p style="margin-bottom:16px;font-size:0.9rem;">This application uses localStorage for demo data. You can reset all data to the original seed state.</p>
+              <button class="btn btn-danger" id="reset-btn"><i data-lucide="refresh-cw"></i> Reset Demo Data</button>
+              <p style="font-size:0.75rem;color:var(--text-muted);margin-top:8px;">Warning: This will delete all complaints, users, and history, then re-seed with default demo data. You will be logged out.</p>
+            </div>
+          </div>
+
+          <div class="card">
+            <div class="card-header"><h3>About This Application</h3></div>
+            <div class="card-body">
+              <div class="detail-field">
+                <div class="detail-label">Application</div>
+                <div class="detail-value">Smart Complaint Management System (SCMS)</div>
+              </div>
+              <div class="detail-field">
+                <div class="detail-label">Version</div>
+                <div class="detail-value">1.0.0 (Demo)</div>
+              </div>
+              <div class="detail-field">
+                <div class="detail-label">Technology</div>
+                <div class="detail-value">HTML5, CSS3, Vanilla JavaScript, localStorage</div>
+              </div>
+              <div class="detail-field">
+                <div class="detail-label">Data Storage</div>
+                <div class="detail-value">Browser localStorage (demonstration only, not production-secure)</div>
+              </div>
+            </div>
+          </div>
+        </div>
+      `;
+      lucide.createIcons();
+
+      document.getElementById('reset-btn').addEventListener('click', () => {
+        showConfirmDialog(
+          'Reset Demo Data',
+          'This will reset ALL data (users, complaints, history, departments) to the original seed state and log you out. Continue?',
+          () => {
+            resetDemoData();
+            showToast('Demo data has been reset.', 'success');
+            setTimeout(() => window.location.href = 'login.html', 1000);
+          },
+          'Reset Everything',
+          'danger'
+        );
+      });
+    });
+  </script>
+</body>
+</html>

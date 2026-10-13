@@ -1,0 +1,116 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Profile — SCMS</title>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="css/style.css">
+  <link rel="stylesheet" href="css/responsive.css">
+  <script src="https://unpkg.com/lucide@latest/dist/umd/lucide.js"></script>
+</head>
+<body>
+  <div class="dashboard-layout">
+    <aside class="sidebar" id="sidebar"></aside>
+    <div class="main-content">
+      <header class="topbar" id="topbar"></header>
+      <main class="page-content" id="page-content"></main>
+    </div>
+  </div>
+
+  <script src="js/storage.js"></script>
+  <script src="js/auth.js"></script>
+  <script src="js/ui.js"></script>
+  <script>
+    document.addEventListener('DOMContentLoaded', () => {
+      const session = requireAuth(['citizen', 'staff', 'admin']);
+      if (!session) return;
+      renderDashboardLayout(session.role, 'profile');
+
+      const user = getCurrentUser();
+      const dept = user.departmentId ? getDepartmentById(user.departmentId) : null;
+
+      document.getElementById('page-content').innerHTML = `
+        <div class="page-header"><h1>My Profile</h1></div>
+        <div style="display:grid;grid-template-columns:1fr 2fr;gap:24px;max-width:900px;">
+          <div class="card" style="text-align:center;padding:32px;">
+            <div class="user-avatar" style="width:72px;height:72px;font-size:1.75rem;margin:0 auto 16px;">
+              ${user.name.charAt(0).toUpperCase()}
+            </div>
+            <h3>${user.name}</h3>
+            <span class="badge badge-primary" style="margin-top:8px;">${capitalize(user.role)}</span>
+            ${dept ? `<p style="margin-top:8px;font-size:0.85rem;">${dept.name}</p>` : ''}
+            <p style="font-size:0.8rem;color:var(--text-muted);margin-top:12px;">Member since ${formatDate(user.createdAt)}</p>
+          </div>
+          <div class="card">
+            <div class="card-header"><h3>Edit Profile</h3></div>
+            <form id="profile-form">
+              <div class="form-group">
+                <label for="name">Full Name</label>
+                <input type="text" id="name" class="form-control" value="${user.name}">
+              </div>
+              <div class="form-group">
+                <label>Email</label>
+                <input type="email" class="form-control" value="${user.email}" disabled style="background:var(--bg);">
+                <div style="font-size:0.75rem;color:var(--text-muted);margin-top:4px;">Email cannot be changed in this demo.</div>
+              </div>
+              <div class="form-group">
+                <label for="phone">Phone Number</label>
+                <input type="tel" id="phone" class="form-control" value="${user.phone}">
+              </div>
+              <div class="form-group">
+                <label>Role</label>
+                <input type="text" class="form-control" value="${capitalize(user.role)}" disabled style="background:var(--bg);">
+              </div>
+              <button type="submit" class="btn btn-primary"><i data-lucide="save"></i> Save Changes</button>
+            </form>
+          </div>
+        </div>
+
+        <div class="card" style="max-width:900px;margin-top:20px;">
+          <div class="card-header"><h3>Change Password</h3></div>
+          <form id="password-form" style="max-width:400px;">
+            <div class="form-group">
+              <label for="current-pass">Current Password</label>
+              <input type="password" id="current-pass" class="form-control" placeholder="Enter current password">
+            </div>
+            <div class="form-group">
+              <label for="new-pass">New Password</label>
+              <input type="password" id="new-pass" class="form-control" placeholder="Min 6 characters">
+            </div>
+            <div class="form-group">
+              <label for="confirm-pass">Confirm New Password</label>
+              <input type="password" id="confirm-pass" class="form-control" placeholder="Re-enter new password">
+            </div>
+            <button type="submit" class="btn btn-primary"><i data-lucide="lock"></i> Update Password</button>
+          </form>
+        </div>
+      `;
+      lucide.createIcons();
+
+      document.getElementById('profile-form').addEventListener('submit', (e) => {
+        e.preventDefault();
+        const name = document.getElementById('name').value.trim();
+        const phone = document.getElementById('phone').value.trim();
+        if (!name) { showToast('Name is required', 'warning'); return; }
+        updateUser(user.id, { name, phone });
+        showToast('Profile updated successfully!', 'success');
+        setTimeout(() => location.reload(), 800);
+      });
+
+      document.getElementById('password-form').addEventListener('submit', (e) => {
+        e.preventDefault();
+        const current = document.getElementById('current-pass').value;
+        const newPass = document.getElementById('new-pass').value;
+        const confirm = document.getElementById('confirm-pass').value;
+        if (current !== user.password) { showToast('Current password is incorrect', 'error'); return; }
+        if (newPass.length < 6) { showToast('New password must be at least 6 characters', 'warning'); return; }
+        if (newPass !== confirm) { showToast('Passwords do not match', 'warning'); return; }
+        updateUser(user.id, { password: newPass });
+        showToast('Password updated! (Demo only — not securely stored)', 'success');
+        e.target.reset();
+      });
+    });
+  </script>
+</body>
+</html>

@@ -1,0 +1,153 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Dashboard — SCMS</title>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="css/style.css">
+  <link rel="stylesheet" href="css/responsive.css">
+  <script src="https://unpkg.com/lucide@latest/dist/umd/lucide.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4"></script>
+</head>
+<body>
+  <div class="dashboard-layout">
+    <aside class="sidebar" id="sidebar"></aside>
+    <div class="main-content">
+      <header class="topbar" id="topbar"></header>
+      <main class="page-content" id="page-content"></main>
+    </div>
+  </div>
+
+  <script src="js/storage.js"></script>
+  <script src="js/auth.js"></script>
+  <script src="js/ui.js"></script>
+  <script>
+    document.addEventListener('DOMContentLoaded', () => {
+      const session = requireAuth(['citizen']);
+      if (!session) return;
+      renderDashboardLayout('citizen', 'dashboard');
+
+      const user = getCurrentUser();
+      const myComplaints = getComplaintsByUser(session.userId);
+      const pending = myComplaints.filter(c => c.status === 'Pending').length;
+      const inProgress = myComplaints.filter(c => c.status === 'In Progress' || c.status === 'Assigned').length;
+      const resolved = myComplaints.filter(c => c.status === 'Resolved' || c.status === 'Closed').length;
+
+      const content = document.getElementById('page-content');
+      content.innerHTML = `
+        <div class="welcome-banner">
+          <div>
+            <h2>Welcome, ${user.name}!</h2>
+            <p>Track your complaints and stay updated on resolutions.</p>
+          </div>
+          <a href="new-complaint.html" class="btn"><i data-lucide="plus-circle"></i> New Complaint</a>
+        </div>
+
+        <div class="stats-grid">
+          <div class="stat-card">
+            <div class="stat-icon blue"><i data-lucide="file-text"></i></div>
+            <div class="stat-content">
+              <div class="stat-value">${myComplaints.length}</div>
+              <div class="stat-label">Total Complaints</div>
+            </div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-icon amber"><i data-lucide="clock"></i></div>
+            <div class="stat-content">
+              <div class="stat-value">${pending}</div>
+              <div class="stat-label">Pending</div>
+            </div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-icon info"><i data-lucide="loader"></i></div>
+            <div class="stat-content">
+              <div class="stat-value">${inProgress}</div>
+              <div class="stat-label">In Progress</div>
+            </div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-icon green"><i data-lucide="check-circle"></i></div>
+            <div class="stat-content">
+              <div class="stat-value">${resolved}</div>
+              <div class="stat-label">Resolved</div>
+            </div>
+          </div>
+        </div>
+
+        <div class="dashboard-grid">
+          <div class="card">
+            <div class="card-header">
+              <h3>Status Distribution</h3>
+            </div>
+            <div class="card-body">
+              <div class="chart-container"><canvas id="status-chart"></canvas></div>
+            </div>
+          </div>
+          <div class="card">
+            <div class="card-header">
+              <h3>Recent Complaints</h3>
+              <a href="my-complaints.html" class="btn btn-ghost btn-sm">View All</a>
+            </div>
+            <div class="card-body">
+              <div class="complaint-list" id="recent-list"></div>
+            </div>
+          </div>
+        </div>
+      `;
+      lucide.createIcons();
+
+      // Recent complaints list
+      const recent = myComplaints.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt)).slice(0, 5);
+      const recentList = document.getElementById('recent-list');
+      if (recent.length === 0) {
+        recentList.innerHTML = emptyState('file-text', 'No complaints yet', 'Submit your first complaint to get started.', '<a href="new-complaint.html" class="btn btn-primary btn-sm"><i data-lucide="plus-circle"></i> New Complaint</a>');
+      } else {
+        recentList.innerHTML = recent.map(c => `
+          <a href="complaint-details.html?id=${c.id}" class="complaint-card">
+            <span class="complaint-id-badge">${c.id}</span>
+            <div class="complaint-meta">
+              <div class="complaint-title">${c.title}</div>
+              <div class="complaint-info">
+                <span>${c.category}</span>
+                <span>${timeAgo(c.createdAt)}</span>
+              </div>
+            </div>
+            ${statusBadge(c.status)}
+          </a>
+        `).join('');
+      }
+      lucide.createIcons();
+
+      // Status chart
+      const statusCounts = {
+        'Pending': myComplaints.filter(c => c.status === 'Pending').length,
+        'Assigned': myComplaints.filter(c => c.status === 'Assigned').length,
+        'In Progress': myComplaints.filter(c => c.status === 'In Progress').length,
+        'Resolved': myComplaints.filter(c => c.status === 'Resolved').length,
+        'Closed': myComplaints.filter(c => c.status === 'Closed').length
+      };
+      new Chart(document.getElementById('status-chart'), {
+        type: 'doughnut',
+        data: {
+          labels: Object.keys(statusCounts),
+          datasets: [{
+            data: Object.values(statusCounts),
+            backgroundColor: ['#F79009', '#2E90FA', '#4568F5', '#12B76A', '#98A2B3'],
+            borderWidth: 0,
+            hoverOffset: 6
+          }]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          plugins: {
+            legend: { position: 'bottom', labels: { padding: 16, usePointStyle: true, font: { family: 'Inter', size: 12 } } }
+          },
+          cutout: '65%'
+        }
+      });
+    });
+  </script>
+</body>
+</html>

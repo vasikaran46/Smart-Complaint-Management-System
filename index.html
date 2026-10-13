@@ -1,0 +1,175 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="Smart Complaint Management System — Submit complaints, track resolutions, and hold departments accountable transparently.">
+  <title>SCMS — Smart Complaint Management System</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="css/style.css">
+  <link rel="stylesheet" href="css/responsive.css">
+  <script src="https://unpkg.com/lucide@latest/dist/umd/lucide.js"></script>
+</head>
+<body>
+  <!-- Navbar -->
+  <nav class="public-navbar" id="public-navbar"></nav>
+
+  <!-- Hero -->
+  <section class="hero">
+    <div class="container">
+      <h1>Every Concern Deserves <span class="highlight">a Solution</span></h1>
+      <p>Submit your complaints effortlessly, track progress in real time, and see resolutions delivered with full transparency and accountability.</p>
+      <div class="hero-ctas">
+        <a href="login.html" class="btn btn-primary btn-lg"><i data-lucide="plus-circle"></i> Submit a Complaint</a>
+        <a href="login.html" class="btn btn-secondary btn-lg"><i data-lucide="search"></i> Track Your Complaint</a>
+      </div>
+
+      <!-- Dashboard Mockup -->
+      <div class="hero-visual">
+        <div class="mockup-bar">
+          <div class="mockup-dot"></div>
+          <div class="mockup-dot"></div>
+          <div class="mockup-dot"></div>
+        </div>
+        <div class="mockup-grid" id="hero-stats"></div>
+        <div class="mockup-chart">
+          <div class="mockup-chart-bars" id="hero-chart-bars"></div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Features -->
+  <section class="features-section">
+    <div class="container">
+      <div class="section-title">
+        <h2>Why Choose SCMS?</h2>
+        <p>A modern platform designed to make civic participation simple, transparent, and effective.</p>
+      </div>
+      <div class="features-grid">
+        <div class="feature-card">
+          <div class="feature-icon blue"><i data-lucide="send"></i></div>
+          <h3>Easy Reporting</h3>
+          <p>Submit complaints in minutes with a simple, guided form. Attach images, set priority, and receive a unique tracking ID instantly.</p>
+        </div>
+        <div class="feature-card">
+          <div class="feature-icon teal"><i data-lucide="eye"></i></div>
+          <h3>Transparent Tracking</h3>
+          <p>Follow every status change with a visual timeline. Know exactly where your complaint stands — from submission to resolution.</p>
+        </div>
+        <div class="feature-card">
+          <div class="feature-icon amber"><i data-lucide="shield-check"></i></div>
+          <h3>Accountable Resolution</h3>
+          <p>Complaints are assigned to the right department with staff accountability. Every action is recorded and visible.</p>
+        </div>
+        <div class="feature-card">
+          <div class="feature-icon green"><i data-lucide="bar-chart-3"></i></div>
+          <h3>Data-Driven Insights</h3>
+          <p>Administrators can analyze complaint trends, department performance, and resolution metrics with rich analytics dashboards.</p>
+        </div>
+        <div class="feature-card">
+          <div class="feature-icon red"><i data-lucide="bell-ring"></i></div>
+          <h3>Real-Time Updates</h3>
+          <p>Get notified when your complaint status changes. Stay informed without constant follow-ups or phone calls.</p>
+        </div>
+        <div class="feature-card">
+          <div class="feature-icon blue"><i data-lucide="smartphone"></i></div>
+          <h3>Works Everywhere</h3>
+          <p>Fully responsive design works seamlessly on desktop, tablet, and mobile — submit complaints from anywhere.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Steps -->
+  <section class="steps-section">
+    <div class="container">
+      <div class="section-title">
+        <h2>How It Works</h2>
+        <p>Three simple steps to get your concern addressed and resolved.</p>
+      </div>
+      <div class="steps-grid">
+        <div class="step-item">
+          <div class="step-number">1</div>
+          <h3>Submit Your Complaint</h3>
+          <p>Fill in the details — title, description, category, location, and priority. Attach images if needed.</p>
+        </div>
+        <div class="step-item">
+          <div class="step-number">2</div>
+          <h3>Track Progress</h3>
+          <p>Your complaint is reviewed and assigned to the appropriate department. Track every update on a visual timeline.</p>
+        </div>
+        <div class="step-item">
+          <div class="step-number">3</div>
+          <h3>See Resolution</h3>
+          <p>The assigned team works on it and marks it resolved. You see the resolution notes and can verify the outcome.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Live Stats -->
+  <section class="stats-section">
+    <div class="container">
+      <div class="section-title">
+        <h2>Platform Statistics</h2>
+        <p>Real numbers from our system — calculated live from current data.</p>
+      </div>
+      <div class="landing-stats-grid" id="landing-stats"></div>
+    </div>
+  </section>
+
+  <!-- CTA -->
+  <section class="cta-section">
+    <div class="container">
+      <h2>Ready to Make Your Voice Heard?</h2>
+      <p>Join our platform and contribute to building a better, more responsive community.</p>
+      <div class="hero-ctas">
+        <a href="register.html" class="btn btn-primary btn-lg"><i data-lucide="user-plus"></i> Create Free Account</a>
+        <a href="login.html" class="btn btn-secondary btn-lg" style="background:rgba(255,255,255,0.1);color:#fff;border-color:rgba(255,255,255,0.2);"><i data-lucide="log-in"></i> Login to Dashboard</a>
+      </div>
+    </div>
+  </section>
+
+  <!-- Footer -->
+  <footer class="public-footer" id="public-footer"></footer>
+
+  <script src="js/storage.js"></script>
+  <script src="js/auth.js"></script>
+  <script src="js/ui.js"></script>
+  <script>
+    document.addEventListener('DOMContentLoaded', () => {
+      renderPublicNavbar('home');
+      renderPublicFooter();
+      lucide.createIcons();
+
+      // Populate hero stats from real data
+      const stats = getComplaintStats();
+      const userStats = getUserStats();
+      document.getElementById('hero-stats').innerHTML = `
+        <div class="mockup-stat"><div class="mockup-stat-value">${stats.total}</div><div class="mockup-stat-label">Total Complaints</div></div>
+        <div class="mockup-stat"><div class="mockup-stat-value">${stats.resolved + stats.closed}</div><div class="mockup-stat-label">Resolved</div></div>
+        <div class="mockup-stat"><div class="mockup-stat-value">${stats.inProgress + stats.assigned}</div><div class="mockup-stat-label">In Progress</div></div>
+        <div class="mockup-stat"><div class="mockup-stat-value">${userStats.total}</div><div class="mockup-stat-label">Registered Users</div></div>
+      `;
+
+      // Chart bars
+      const heights = [45, 70, 55, 85, 60, 75, 90, 50, 65, 80, 40, 95];
+      document.getElementById('hero-chart-bars').innerHTML = heights.map(h =>
+        `<div class="mockup-chart-bar" style="height:${h}%"></div>`
+      ).join('');
+
+      // Landing stats
+      const depts = getDepartments();
+      const resolvedRate = stats.total > 0 ? Math.round(((stats.resolved + stats.closed) / stats.total) * 100) : 0;
+      document.getElementById('landing-stats').innerHTML = `
+        <div class="landing-stat"><div class="landing-stat-value">${stats.total}</div><div class="landing-stat-label">Complaints Filed</div></div>
+        <div class="landing-stat"><div class="landing-stat-value">${stats.resolved + stats.closed}</div><div class="landing-stat-label">Issues Resolved</div></div>
+        <div class="landing-stat"><div class="landing-stat-value">${depts.length}</div><div class="landing-stat-label">Active Departments</div></div>
+        <div class="landing-stat"><div class="landing-stat-value">${resolvedRate}%</div><div class="landing-stat-label">Resolution Rate</div></div>
+      `;
+    });
+  </script>
+</body>
+</html>

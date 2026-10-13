@@ -1,0 +1,291 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Assigned Complaints — SCMS</title>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="css/style.css">
+  <link rel="stylesheet" href="css/responsive.css">
+  <script src="https://unpkg.com/lucide@latest/dist/umd/lucide.js"></script>
+</head>
+<body>
+  <div class="dashboard-layout">
+    <aside class="sidebar" id="sidebar"></aside>
+    <div class="main-content">
+      <header class="topbar" id="topbar"></header>
+      <main class="page-content">
+        <div class="page-header">
+          <div>
+            <h1>Assigned Complaints</h1>
+            <p style="color:var(--text-muted);font-size:0.9rem;margin-top:4px;">Manage and process citizen complaints assigned to you and your department.</p>
+          </div>
+          <div style="display:flex;gap:10px;">
+            <select id="scope-selector" class="form-control" style="width:auto;font-weight:600;">
+              <option value="mine">Assigned to Me</option>
+              <option value="dept">Entire Department</option>
+            </select>
+          </div>
+        </div>
+
+        <div class="filter-bar">
+          <div class="search-input">
+            <i data-lucide="search"></i>
+            <input type="text" id="search" class="form-control" placeholder="Search by ID, title, location…">
+          </div>
+          <select id="filter-status" class="form-control">
+            <option value="">All Status</option>
+            <option value="Assigned">Assigned</option>
+            <option value="In Progress">In Progress</option>
+            <option value="Resolved">Resolved</option>
+            <option value="Closed">Closed</option>
+          </select>
+          <select id="filter-category" class="form-control">
+            <option value="">All Categories</option>
+            <option value="Infrastructure">Infrastructure</option>
+            <option value="Water Supply">Water Supply</option>
+            <option value="Electricity">Electricity</option>
+            <option value="Sanitation">Sanitation</option>
+            <option value="Transportation">Transportation</option>
+            <option value="Public Safety">Public Safety</option>
+            <option value="Other">Other</option>
+          </select>
+          <select id="filter-priority" class="form-control">
+            <option value="">All Priorities</option>
+            <option value="Low">Low</option>
+            <option value="Medium">Medium</option>
+            <option value="High">High</option>
+            <option value="Urgent">Urgent</option>
+          </select>
+          <select id="sort-order" class="form-control">
+            <option value="newest">Newest First</option>
+            <option value="oldest">Oldest First</option>
+            <option value="priority">Highest Priority</option>
+          </select>
+        </div>
+
+        <div class="table-card">
+          <div class="table-container">
+            <table class="data-table">
+              <thead>
+                <tr>
+                  <th>ID</th>
+                  <th>Title & Citizen</th>
+                  <th>Category</th>
+                  <th>Location</th>
+                  <th>Priority</th>
+                  <th>Status</th>
+                  <th>Assigned Staff</th>
+                  <th>Date</th>
+                  <th>Actions</th>
+                </tr>
+              </thead>
+              <tbody id="complaints-table-body"></tbody>
+            </table>
+          </div>
+        </div>
+
+        <div id="pagination-container"></div>
+      </main>
+    </div>
+  </div>
+
+  <script src="js/storage.js"></script>
+  <script src="js/auth.js"></script>
+  <script src="js/ui.js"></script>
+  <script>
+    let currentPage = 1;
+    const PER_PAGE = 8;
+
+    document.addEventListener('DOMContentLoaded', () => {
+      const session = requireAuth(['staff']);
+      if (!session) return;
+      renderDashboardLayout('staff', 'assigned');
+      lucide.createIcons();
+
+      ['search', 'filter-status', 'filter-category', 'filter-priority', 'sort-order', 'scope-selector'].forEach(id => {
+        document.getElementById(id).addEventListener(id === 'search' ? 'input' : 'change', () => {
+          currentPage = 1;
+          renderComplaints();
+        });
+      });
+
+      renderComplaints();
+    });
+
+    function getFilteredList() {
+      const session = getSession();
+      const user = getCurrentUser();
+      const scope = document.getElementById('scope-selector').value;
+
+      let list = scope === 'dept' && user.departmentId
+        ? getComplaintsByDepartment(user.departmentId)
+        : getComplaintsByStaff(session.userId);
+
+      const search = document.getElementById('search').value.toLowerCase().trim();
+      const status = document.getElementById('filter-status').value;
+      const category = document.getElementById('filter-category').value;
+      const priority = document.getElementById('filter-priority').value;
+      const sort = document.getElementById('sort-order').value;
+
+      if (search) {
+        list = list.filter(c => 
+          c.id.toLowerCase().includes(search) || 
+          c.title.toLowerCase().includes(search) ||
+          (c.location && c.location.toLowerCase().includes(search))
+        );
+      }
+      if (status) list = list.filter(c => c.status === status);
+      if (category) list = list.filter(c => c.category === category);
+      if (priority) list = list.filter(c => c.priority === priority);
+
+      const priorityWeight = { 'Urgent': 4, 'High': 3, 'Medium': 2, 'Low': 1 };
+      list.sort((a, b) => {
+        if (sort === 'priority') {
+          return (priorityWeight[b.priority] || 0) - (priorityWeight[a.priority] || 0);
+        }
+        return sort === 'newest'
+          ? new Date(b.createdAt) - new Date(a.createdAt)
+          : new Date(a.createdAt) - new Date(b.createdAt);
+      });
+
+      return list;
+    }
+
+    function renderComplaints() {
+      const filtered = getFilteredList();
+      const tableBody = document.getElementById('complaints-table-body');
+      const paginationEl = document.getElementById('pagination-container');
+      const { items, totalPages } = paginate(filtered, currentPage, PER_PAGE);
+
+      if (filtered.length === 0) {
+        tableBody.innerHTML = `
+          <tr>
+            <td colspan="9" style="text-align:center;padding:48px 20px;">
+              <div style="color:var(--text-muted);font-size:1.1rem;margin-bottom:8px;">No complaints match the selected filters.</div>
+              <p style="color:var(--text-secondary);font-size:0.875rem;">Try clearing the search or checking back later.</p>
+            </td>
+          </tr>
+        `;
+        paginationEl.innerHTML = '';
+        lucide.createIcons();
+        return;
+      }
+
+      tableBody.innerHTML = items.map(c => {
+        const citizen = getUserById(c.citizenId);
+        const assignedUser = c.assignedStaffId ? getUserById(c.assignedStaffId) : null;
+        return `
+          <tr>
+            <td><span class="complaint-id-badge">${c.id}</span></td>
+            <td>
+              <div style="font-weight:600;color:var(--text);">${c.title}</div>
+              <div style="font-size:0.75rem;color:var(--text-muted);">By ${citizen ? citizen.name : 'Unknown Citizen'}</div>
+            </td>
+            <td>
+              <i data-lucide="${getCategoryIcon(c.category)}" style="width:14px;height:14px;vertical-align:middle;margin-right:4px;"></i>
+              ${c.category}
+            </td>
+            <td>${truncate(c.location, 25)}</td>
+            <td>${priorityBadge(c.priority)}</td>
+            <td>${statusBadge(c.status)}</td>
+            <td>
+              ${assignedUser ? `
+                <div style="font-size:0.85rem;font-weight:500;">${assignedUser.name}</div>
+              ` : '<span style="color:var(--text-muted);font-size:0.8rem;">Unassigned</span>'}
+            </td>
+            <td>${timeAgo(c.createdAt)}</td>
+            <td>
+              <div class="table-actions">
+                <a href="complaint-details.html?id=${c.id}" class="btn btn-secondary btn-sm" title="View details & full timeline">
+                  <i data-lucide="eye"></i>
+                </a>
+                <button class="btn btn-primary btn-sm" onclick="quickUpdateModal('${c.id}')" title="Quick status update">
+                  <i data-lucide="edit-3"></i> Update
+                </button>
+              </div>
+            </td>
+          </tr>
+        `;
+      }).join('');
+
+      renderPagination(paginationEl, currentPage, totalPages, goToPage);
+      lucide.createIcons();
+    }
+
+    function goToPage(page) {
+      currentPage = page;
+      renderComplaints();
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    }
+
+    function quickUpdateModal(complaintId) {
+      const complaint = getComplaintById(complaintId);
+      if (!complaint) return;
+
+      const bodyHTML = `
+        <div style="margin-bottom:12px;">
+          <strong>Complaint:</strong> ${complaint.id} — ${complaint.title}
+        </div>
+        <div class="form-group" style="margin-bottom:14px;">
+          <label class="form-label">Update Status</label>
+          <select id="quick-status" class="form-control">
+            <option value="Assigned" ${complaint.status === 'Assigned' ? 'selected' : ''}>Assigned</option>
+            <option value="In Progress" ${complaint.status === 'In Progress' ? 'selected' : ''}>In Progress</option>
+            <option value="Resolved" ${complaint.status === 'Resolved' ? 'selected' : ''}>Resolved</option>
+          </select>
+        </div>
+        <div class="form-group" style="margin-bottom:14px;">
+          <label class="form-label">Progress Remarks</label>
+          <input type="text" id="quick-remarks" class="form-control" placeholder="Brief note on action taken..." />
+        </div>
+        <div class="form-group" style="margin-bottom:14px;">
+          <label class="form-label">Resolution Notes</label>
+          <textarea id="quick-resnotes" class="form-control" rows="3" placeholder="If resolving, provide full resolution details...">${complaint.resolutionNotes || ''}</textarea>
+        </div>
+      `;
+
+      const footerHTML = `
+        <button class="btn btn-secondary" onclick="closeModal()">Cancel</button>
+        <button class="btn btn-primary" onclick="saveQuickUpdate('${complaint.id}')">Save Status</button>
+      `;
+
+      showModal('Quick Status Update', bodyHTML, footerHTML);
+    }
+
+    function saveQuickUpdate(id) {
+      const session = getSession();
+      const current = getComplaintById(id);
+      if (!current) return;
+
+      const status = document.getElementById('quick-status').value;
+      const remarks = document.getElementById('quick-remarks').value.trim() || `Status updated to ${status}`;
+      const resolutionNotes = document.getElementById('quick-resnotes').value.trim();
+
+      if (status === 'Resolved' && !resolutionNotes && !current.resolutionNotes) {
+        showToast('Please provide resolution notes before marking as Resolved.', 'warning');
+        return;
+      }
+
+      updateComplaint(id, {
+        status,
+        resolutionNotes: resolutionNotes || current.resolutionNotes
+      });
+
+      addComplaintHistory({
+        id: generateId('h_'),
+        complaintId: id,
+        previousStatus: current.status,
+        newStatus: status,
+        remarks,
+        updatedBy: session.userId,
+        updatedAt: now()
+      });
+
+      closeModal();
+      showToast('Complaint status updated successfully!', 'success');
+      renderComplaints();
+    }
+  </script>
+</body>
+</html>

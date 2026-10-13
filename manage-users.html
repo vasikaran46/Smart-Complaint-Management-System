@@ -1,0 +1,403 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Manage Users — SCMS Admin</title>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="css/style.css">
+  <link rel="stylesheet" href="css/responsive.css">
+  <script src="https://unpkg.com/lucide@latest/dist/umd/lucide.js"></script>
+</head>
+<body>
+  <div class="dashboard-layout">
+    <aside class="sidebar" id="sidebar"></aside>
+    <div class="main-content">
+      <header class="topbar" id="topbar"></header>
+      <main class="page-content">
+        <div class="page-header">
+          <div>
+            <h1>User Management</h1>
+            <p style="color:var(--text-muted);font-size:0.9rem;margin-top:4px;">Manage accounts, roles, access permissions and department assignments.</p>
+          </div>
+          <button class="btn btn-primary" onclick="openAddUserModal()">
+            <i data-lucide="user-plus"></i> Add New User
+          </button>
+        </div>
+
+        <div class="filter-bar">
+          <div class="search-input">
+            <i data-lucide="search"></i>
+            <input type="text" id="search" class="form-control" placeholder="Search by name, email, phone…">
+          </div>
+          <select id="filter-role" class="form-control">
+            <option value="">All Roles</option>
+            <option value="citizen">Citizens</option>
+            <option value="staff">Staff Members</option>
+            <option value="admin">Administrators</option>
+          </select>
+          <select id="filter-status" class="form-control">
+            <option value="">All Statuses</option>
+            <option value="active">Active Only</option>
+            <option value="inactive">Inactive Only</option>
+          </select>
+        </div>
+
+        <div class="table-card">
+          <div class="table-container">
+            <table class="data-table">
+              <thead>
+                <tr>
+                  <th>User</th>
+                  <th>Role</th>
+                  <th>Department</th>
+                  <th>Phone</th>
+                  <th>Status</th>
+                  <th>Joined</th>
+                  <th>Actions</th>
+                </tr>
+              </thead>
+              <tbody id="users-table-body"></tbody>
+            </table>
+          </div>
+        </div>
+
+        <div id="pagination-container"></div>
+      </main>
+    </div>
+  </div>
+
+  <script src="js/storage.js"></script>
+  <script src="js/auth.js"></script>
+  <script src="js/ui.js"></script>
+  <script>
+    let currentPage = 1;
+    const PER_PAGE = 8;
+
+    document.addEventListener('DOMContentLoaded', () => {
+      const session = requireAuth(['admin']);
+      if (!session) return;
+      renderDashboardLayout('admin', 'users');
+      lucide.createIcons();
+
+      ['search', 'filter-role', 'filter-status'].forEach(id => {
+        document.getElementById(id).addEventListener(id === 'search' ? 'input' : 'change', () => {
+          currentPage = 1;
+          renderUsers();
+        });
+      });
+
+      renderUsers();
+    });
+
+    function getFilteredUsers() {
+      let users = getUsers();
+      const search = document.getElementById('search').value.toLowerCase().trim();
+      const role = document.getElementById('filter-role').value;
+      const status = document.getElementById('filter-status').value;
+
+      if (search) {
+        users = users.filter(u => 
+          u.name.toLowerCase().includes(search) || 
+          u.email.toLowerCase().includes(search) || 
+          (u.phone && u.phone.includes(search))
+        );
+      }
+      if (role) users = users.filter(u => u.role === role);
+      if (status) {
+        users = users.filter(u => status === 'active' ? u.active : !u.active);
+      }
+
+      return users;
+    }
+
+    function renderUsers() {
+      const filtered = getFilteredUsers();
+      const tbody = document.getElementById('users-table-body');
+      const paginationEl = document.getElementById('pagination-container');
+      const { items, totalPages } = paginate(filtered, currentPage, PER_PAGE);
+      const session = getSession();
+
+      if (filtered.length === 0) {
+        tbody.innerHTML = `
+          <tr>
+            <td colspan="7" style="text-align:center;padding:48px 20px;color:var(--text-muted);">
+              No users found matching your filters.
+            </td>
+          </tr>
+        `;
+        paginationEl.innerHTML = '';
+        lucide.createIcons();
+        return;
+      }
+
+      tbody.innerHTML = items.map(u => {
+        const dept = u.departmentId ? getDepartmentById(u.departmentId) : null;
+        const roleBadges = {
+          'admin': '<span class="badge" style="background:#FEE4E2;color:#B42318;font-weight:600;">Admin</span>',
+          'staff': '<span class="badge" style="background:#E0F2FE;color:#0284C7;font-weight:600;">Staff</span>',
+          'citizen': '<span class="badge" style="background:#EDF2F7;color:#4A5568;font-weight:600;">Citizen</span>'
+        };
+
+        const isSelf = u.id === session.userId;
+
+        return `
+          <tr>
+            <td>
+              <div class="user-cell">
+                <div class="user-cell-avatar">${u.name.charAt(0).toUpperCase()}</div>
+                <div class="user-cell-meta">
+                  <div class="user-cell-name">${u.name} ${isSelf ? '<span style="font-size:0.7rem;color:var(--primary);">(You)</span>' : ''}</div>
+                  <div class="user-cell-email">${u.email}</div>
+                </div>
+              </div>
+            </td>
+            <td>${roleBadges[u.role] || u.role}</td>
+            <td>
+              ${dept ? `<span class="dept-pill">${dept.name}</span>` : '<span style="color:var(--text-muted);font-size:0.8rem;">—</span>'}
+            </td>
+            <td>${u.phone || '—'}</td>
+            <td>
+              <span class="status-indicator ${u.active ? 'active' : 'inactive'}"></span>
+              <span style="font-size:0.85rem;font-weight:500;">${u.active ? 'Active' : 'Inactive'}</span>
+            </td>
+            <td>${formatDate(u.createdAt)}</td>
+            <td>
+              <div class="table-actions">
+                <button class="btn btn-secondary btn-sm" onclick="openEditUserModal('${u.id}')" title="Edit User">
+                  <i data-lucide="edit-2"></i>
+                </button>
+                <button class="btn ${u.active ? 'btn-ghost' : 'btn-primary'} btn-sm" 
+                  style="${u.active ? 'color:var(--amber);' : ''}" 
+                  onclick="toggleUserStatus('${u.id}')" 
+                  title="${u.active ? 'Deactivate' : 'Activate'}"
+                  ${isSelf ? 'disabled' : ''}>
+                  <i data-lucide="${u.active ? 'user-x' : 'user-check'}"></i>
+                </button>
+              </div>
+            </td>
+          </tr>
+        `;
+      }).join('');
+
+      renderPagination(paginationEl, currentPage, totalPages, goToPage);
+      lucide.createIcons();
+    }
+
+    function goToPage(page) {
+      currentPage = page;
+      renderUsers();
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    }
+
+    function openAddUserModal() {
+      const departments = getDepartments();
+      const bodyHTML = `
+        <div class="form-group" style="margin-bottom:12px;">
+          <label class="form-label">Full Name</label>
+          <input type="text" id="add-name" class="form-control" placeholder="John Doe" />
+        </div>
+        <div class="form-group" style="margin-bottom:12px;">
+          <label class="form-label">Email Address</label>
+          <input type="email" id="add-email" class="form-control" placeholder="user@example.com" />
+        </div>
+        <div class="form-group" style="margin-bottom:12px;">
+          <label class="form-label">Phone Number</label>
+          <input type="tel" id="add-phone" class="form-control" placeholder="9876543210" />
+        </div>
+        <div class="form-group" style="margin-bottom:12px;">
+          <label class="form-label">Account Role</label>
+          <select id="add-role" class="form-control" onchange="toggleAddDeptField(this.value)">
+            <option value="citizen">Citizen</option>
+            <option value="staff">Department Staff</option>
+            <option value="admin">Administrator</option>
+          </select>
+        </div>
+        <div class="form-group" id="add-dept-group" style="margin-bottom:12px; display:none;">
+          <label class="form-label">Assigned Department</label>
+          <select id="add-dept" class="form-control">
+            <option value="">-- Select Department --</option>
+            ${departments.map(d => `<option value="${d.id}">${d.name}</option>`).join('')}
+          </select>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Demo Password</label>
+          <input type="password" id="add-password" class="form-control" value="demo1234" />
+        </div>
+      `;
+
+      const footerHTML = `
+        <button class="btn btn-secondary" onclick="closeModal()">Cancel</button>
+        <button class="btn btn-primary" onclick="saveNewUser()">Create Account</button>
+      `;
+
+      showModal('Add New User Account', bodyHTML, footerHTML);
+    }
+
+    function toggleAddDeptField(role) {
+      const group = document.getElementById('add-dept-group');
+      if (group) {
+        group.style.display = role === 'staff' ? 'block' : 'none';
+      }
+    }
+
+    function saveNewUser() {
+      const name = document.getElementById('add-name').value.trim();
+      const email = document.getElementById('add-email').value.trim().toLowerCase();
+      const phone = document.getElementById('add-phone').value.trim();
+      const role = document.getElementById('add-role').value;
+      const deptId = role === 'staff' ? document.getElementById('add-dept').value : null;
+      const password = document.getElementById('add-password').value;
+
+      if (!name || !email || !password) {
+        showToast('Name, email, and password are required.', 'error');
+        return;
+      }
+      if (!isValidEmail(email)) {
+        showToast('Please enter a valid email address.', 'error');
+        return;
+      }
+      if (getUserByEmail(email)) {
+        showToast('A user with this email already exists.', 'error');
+        return;
+      }
+
+      addUser({
+        id: generateId('user_'),
+        name,
+        email,
+        phone,
+        password,
+        role,
+        departmentId: deptId || null,
+        createdAt: now(),
+        active: true
+      });
+
+      closeModal();
+      showToast(`User ${name} created successfully!`, 'success');
+      renderUsers();
+    }
+
+    function openEditUserModal(userId) {
+      const user = getUserById(userId);
+      if (!user) return;
+      const departments = getDepartments();
+
+      const bodyHTML = `
+        <div class="form-group" style="margin-bottom:12px;">
+          <label class="form-label">Full Name</label>
+          <input type="text" id="edit-name" class="form-control" value="${user.name}" />
+        </div>
+        <div class="form-group" style="margin-bottom:12px;">
+          <label class="form-label">Email Address (Read-only)</label>
+          <input type="email" class="form-control" value="${user.email}" disabled />
+        </div>
+        <div class="form-group" style="margin-bottom:12px;">
+          <label class="form-label">Phone Number</label>
+          <input type="tel" id="edit-phone" class="form-control" value="${user.phone || ''}" />
+        </div>
+        <div class="form-group" style="margin-bottom:12px;">
+          <label class="form-label">Role</label>
+          <select id="edit-role" class="form-control" onchange="toggleEditDeptField(this.value)">
+            <option value="citizen" ${user.role === 'citizen' ? 'selected' : ''}>Citizen</option>
+            <option value="staff" ${user.role === 'staff' ? 'selected' : ''}>Department Staff</option>
+            <option value="admin" ${user.role === 'admin' ? 'selected' : ''}>Administrator</option>
+          </select>
+        </div>
+        <div class="form-group" id="edit-dept-group" style="margin-bottom:12px; display:${user.role === 'staff' ? 'block' : 'none'};">
+          <label class="form-label">Department</label>
+          <select id="edit-dept" class="form-control">
+            <option value="">-- None --</option>
+            ${departments.map(d => `<option value="${d.id}" ${user.departmentId === d.id ? 'selected' : ''}>${d.name}</option>`).join('')}
+          </select>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Reset Password</label>
+          <input type="text" id="edit-password" class="form-control" placeholder="Leave blank to keep current" />
+        </div>
+      `;
+
+      const footerHTML = `
+        <button class="btn btn-secondary" onclick="closeModal()">Cancel</button>
+        <button class="btn btn-primary" onclick="saveUserEdit('${user.id}')">Save Changes</button>
+      `;
+
+      showModal(`Edit User: ${user.name}`, bodyHTML, footerHTML);
+    }
+
+    function toggleEditDeptField(role) {
+      const group = document.getElementById('edit-dept-group');
+      if (group) group.style.display = role === 'staff' ? 'block' : 'none';
+    }
+
+    function saveUserEdit(id) {
+      const user = getUserById(id);
+      if (!user) return;
+
+      const name = document.getElementById('edit-name').value.trim();
+      const phone = document.getElementById('edit-phone').value.trim();
+      const role = document.getElementById('edit-role').value;
+      const deptId = role === 'staff' ? document.getElementById('edit-dept').value : null;
+      const newPass = document.getElementById('edit-password').value.trim();
+
+      // Safeguard: Prevent removing last admin
+      if (user.role === 'admin' && role !== 'admin') {
+        const adminCount = getUsers().filter(u => u.role === 'admin' && u.active).length;
+        if (adminCount <= 1) {
+          showToast('Cannot demote the last active Administrator.', 'error');
+          return;
+        }
+      }
+
+      const updates = {
+        name,
+        phone,
+        role,
+        departmentId: deptId || null
+      };
+      if (newPass) updates.password = newPass;
+
+      updateUser(id, updates);
+      closeModal();
+      showToast('User account updated successfully.', 'success');
+      renderUsers();
+    }
+
+    function toggleUserStatus(id) {
+      const session = getSession();
+      if (id === session.userId) {
+        showToast('You cannot deactivate your own administrative account.', 'warning');
+        return;
+      }
+
+      const user = getUserById(id);
+      if (!user) return;
+
+      // Check last admin safeguard
+      if (user.role === 'admin' && user.active) {
+        const activeAdmins = getUsers().filter(u => u.role === 'admin' && u.active);
+        if (activeAdmins.length <= 1) {
+          showToast('Cannot deactivate the last active Administrator.', 'error');
+          return;
+        }
+      }
+
+      const nextStatus = !user.active;
+      const actionText = nextStatus ? 'activate' : 'deactivate';
+
+      showConfirmDialog(
+        `${capitalize(actionText)} Account`,
+        `Are you sure you want to ${actionText} ${user.name}'s account?`,
+        () => {
+          updateUser(id, { active: nextStatus });
+          showToast(`User ${user.name} has been ${actionText}d.`, 'success');
+          renderUsers();
+        },
+        capitalize(actionText),
+        nextStatus ? 'primary' : 'danger'
+      );
+    }
+  </script>
+</body>
+</html>

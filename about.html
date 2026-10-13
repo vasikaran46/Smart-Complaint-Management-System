@@ -1,0 +1,80 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>About — SCMS</title>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="css/style.css">
+  <link rel="stylesheet" href="css/responsive.css">
+  <script src="https://unpkg.com/lucide@latest/dist/umd/lucide.js"></script>
+</head>
+<body>
+  <nav class="public-navbar" id="public-navbar"></nav>
+  <section class="page-banner">
+    <div class="container">
+      <h1>About SCMS</h1>
+      <p>Building transparent communication between citizens and administration through technology.</p>
+    </div>
+  </section>
+
+  <section class="content-section">
+    <div class="container">
+      <div class="features-grid" style="grid-template-columns: 1fr 1fr;">
+        <div>
+          <h2 style="margin-bottom:16px;">Our Mission</h2>
+          <p style="margin-bottom:16px;">The Smart Complaint Management System was created to bridge the gap between citizens and public administration. We believe every concern — big or small — deserves attention, accountability, and a timely resolution.</p>
+          <p>Our platform provides a structured, digital-first approach to complaint management, replacing inefficient paper-based systems with real-time tracking, automated workflows, and data-driven insights.</p>
+        </div>
+        <div>
+          <h2 style="margin-bottom:16px;">Our Vision</h2>
+          <p style="margin-bottom:16px;">We envision a world where civic engagement is effortless and administration is transparent. SCMS empowers citizens to voice their concerns without barriers, while giving departments the tools to respond effectively.</p>
+          <p>By combining intuitive design with powerful complaint management, we aim to improve public services and build trust between communities and their representatives.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="content-section">
+    <div class="container">
+      <div class="section-title">
+        <h2>Core Values</h2>
+        <p>The principles that guide everything we build.</p>
+      </div>
+      <div class="features-grid">
+        <div class="feature-card">
+          <div class="feature-icon blue"><i data-lucide="eye"></i></div>
+          <h3>Transparency</h3>
+          <p>Every complaint, status update, and resolution is tracked and visible. No hidden processes or unexplained delays.</p>
+        </div>
+        <div class="feature-card">
+          <div class="feature-icon teal"><i data-lucide="users"></i></div>
+          <h3>Accessibility</h3>
+          <p>Designed for everyone — from tech-savvy users to first-time digital users. Simple, clean, and responsive.</p>
+        </div>
+        <div class="feature-card">
+          <div class="feature-icon amber"><i data-lucide="target"></i></div>
+          <h3>Accountability</h3>
+          <p>Clear ownership of every complaint. Departments and staff are assigned, tracked, and measurable.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="cta-section">
+    <div class="container">
+      <h2>Want to Report an Issue?</h2>
+      <p>Creating an account takes less than a minute. Start making a difference today.</p>
+      <a href="register.html" class="btn btn-primary btn-lg"><i data-lucide="user-plus"></i> Get Started</a>
+    </div>
+  </section>
+
+  <footer class="public-footer" id="public-footer"></footer>
+  <script src="js/storage.js"></script>
+  <script src="js/auth.js"></script>
+  <script src="js/ui.js"></script>
+  <script>
+    document.addEventListener('DOMContentLoaded', () => { renderPublicNavbar('about'); renderPublicFooter(); lucide.createIcons(); });
+  </script>
+</body>
+</html>

@@ -1,0 +1,176 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>New Complaint — SCMS</title>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="css/style.css">
+  <link rel="stylesheet" href="css/responsive.css">
+  <script src="https://unpkg.com/lucide@latest/dist/umd/lucide.js"></script>
+</head>
+<body>
+  <div class="dashboard-layout">
+    <aside class="sidebar" id="sidebar"></aside>
+    <div class="main-content">
+      <header class="topbar" id="topbar"></header>
+      <main class="page-content">
+        <div class="page-header">
+          <h1>Submit New Complaint</h1>
+        </div>
+        <div class="card" style="max-width:720px">
+          <form id="complaint-form" novalidate>
+            <div class="form-group">
+              <label for="title" class="required">Complaint Title</label>
+              <input type="text" id="title" class="form-control" placeholder="Brief title describing the issue" required>
+              <div class="form-error" id="title-error"></div>
+            </div>
+            <div class="form-group">
+              <label for="description" class="required">Detailed Description</label>
+              <textarea id="description" class="form-control" placeholder="Describe the issue in detail — what, where, when, and how it affects you or others" rows="5" required></textarea>
+              <div class="form-error" id="description-error"></div>
+            </div>
+            <div class="form-row">
+              <div class="form-group">
+                <label for="category" class="required">Category</label>
+                <select id="category" class="form-control" required>
+                  <option value="">Select category</option>
+                  <option value="Infrastructure">Infrastructure</option>
+                  <option value="Water Supply">Water Supply</option>
+                  <option value="Electricity">Electricity</option>
+                  <option value="Sanitation">Sanitation</option>
+                  <option value="Transportation">Transportation</option>
+                  <option value="Public Safety">Public Safety</option>
+                  <option value="Other">Other</option>
+                </select>
+                <div class="form-error" id="category-error"></div>
+              </div>
+              <div class="form-group">
+                <label for="priority" class="required">Priority</label>
+                <select id="priority" class="form-control" required>
+                  <option value="">Select priority</option>
+                  <option value="Low">Low</option>
+                  <option value="Medium" selected>Medium</option>
+                  <option value="High">High</option>
+                  <option value="Urgent">Urgent</option>
+                </select>
+                <div class="form-error" id="priority-error"></div>
+              </div>
+            </div>
+            <div class="form-group">
+              <label for="location" class="required">Location</label>
+              <input type="text" id="location" class="form-control" placeholder="Street address, area, landmark or ward" required>
+              <div class="form-error" id="location-error"></div>
+            </div>
+            <div class="form-group">
+              <label for="image">Attach Image (Optional)</label>
+              <input type="file" id="image" class="form-control" accept="image/*">
+              <div style="font-size:0.75rem;color:var(--text-muted);margin-top:4px;">Max 2 MB. Images are stored as Base64 in localStorage for demo purposes.</div>
+            </div>
+
+            <div style="display:flex;gap:12px;margin-top:8px;">
+              <button type="submit" class="btn btn-primary btn-lg">
+                <i data-lucide="send"></i> Submit Complaint
+              </button>
+              <a href="citizen-dashboard.html" class="btn btn-secondary btn-lg">Cancel</a>
+            </div>
+          </form>
+        </div>
+      </main>
+    </div>
+  </div>
+
+  <script src="js/storage.js"></script>
+  <script src="js/auth.js"></script>
+  <script src="js/ui.js"></script>
+  <script>
+    document.addEventListener('DOMContentLoaded', () => {
+      const session = requireAuth(['citizen']);
+      if (!session) return;
+      renderDashboardLayout('citizen', 'new-complaint');
+      lucide.createIcons();
+
+      document.getElementById('complaint-form').addEventListener('submit', async (e) => {
+        e.preventDefault();
+        clearErrors();
+
+        const title = document.getElementById('title').value.trim();
+        const description = document.getElementById('description').value.trim();
+        const category = document.getElementById('category').value;
+        const priority = document.getElementById('priority').value;
+        const location = document.getElementById('location').value.trim();
+        const imageInput = document.getElementById('image');
+
+        // Validate
+        let valid = true;
+        if (!title) { showFieldError('title', 'Title is required'); valid = false; }
+        if (!description) { showFieldError('description', 'Description is required'); valid = false; }
+        if (!category) { showFieldError('category', 'Select a category'); valid = false; }
+        if (!priority) { showFieldError('priority', 'Select a priority'); valid = false; }
+        if (!location) { showFieldError('location', 'Location is required'); valid = false; }
+        if (!valid) return;
+
+        // Handle image
+        let imageData = null;
+        if (imageInput.files && imageInput.files[0]) {
+          const file = imageInput.files[0];
+          if (file.size > 2 * 1024 * 1024) {
+            showToast('Image must be under 2 MB', 'warning');
+            return;
+          }
+          imageData = await readFileAsBase64(file);
+        }
+
+        const complaintId = generateComplaintId();
+        const ts = now();
+        const complaint = {
+          id: complaintId,
+          title, description, category, location, priority,
+          status: 'Pending',
+          image: imageData,
+          citizenId: session.userId,
+          departmentId: null,
+          assignedStaffId: null,
+          createdAt: ts,
+          updatedAt: ts,
+          resolutionNotes: ''
+        };
+
+        addComplaint(complaint);
+
+        // Add history entry
+        addComplaintHistory({
+          id: generateId('h_'),
+          complaintId,
+          previousStatus: null,
+          newStatus: 'Pending',
+          remarks: 'Complaint submitted',
+          updatedBy: session.userId,
+          updatedAt: ts
+        });
+
+        showToast(`Complaint submitted! Your tracking ID: ${complaintId}`, 'success', 6000);
+        setTimeout(() => window.location.href = `complaint-details.html?id=${complaintId}`, 1200);
+      });
+    });
+
+    function readFileAsBase64(file) {
+      return new Promise((resolve) => {
+        const reader = new FileReader();
+        reader.onload = () => resolve(reader.result);
+        reader.readAsDataURL(file);
+      });
+    }
+
+    function showFieldError(field, msg) {
+      document.getElementById(field)?.classList.add('error');
+      const err = document.getElementById(field + '-error');
+      if (err) err.textContent = msg;
+    }
+    function clearErrors() {
+      document.querySelectorAll('.form-control.error').forEach(el => el.classList.remove('error'));
+      document.querySelectorAll('.form-error').forEach(el => el.textContent = '');
+    }
+  </script>
+</body>
+</html>

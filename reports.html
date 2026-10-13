@@ -1,0 +1,321 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Reports & Analytics — SCMS Admin</title>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="css/style.css">
+  <link rel="stylesheet" href="css/responsive.css">
+  <script src="https://unpkg.com/lucide@latest/dist/umd/lucide.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4"></script>
+</head>
+<body>
+  <div class="dashboard-layout">
+    <aside class="sidebar" id="sidebar"></aside>
+    <div class="main-content">
+      <header class="topbar" id="topbar"></header>
+      <main class="page-content" id="page-content"></main>
+    </div>
+  </div>
+
+  <script src="js/storage.js"></script>
+  <script src="js/auth.js"></script>
+  <script src="js/ui.js"></script>
+  <script>
+    let currentDateFilter = 'all';
+    let catChartInstance = null;
+    let deptChartInstance = null;
+
+    document.addEventListener('DOMContentLoaded', () => {
+      const session = requireAuth(['admin']);
+      if (!session) return;
+      renderDashboardLayout('admin', 'reports');
+
+      const content = document.getElementById('page-content');
+      content.innerHTML = `
+        <div class="page-header">
+          <div>
+            <h1>Comprehensive Analytics & Reports</h1>
+            <p style="color:var(--text-muted);font-size:0.9rem;margin-top:4px;">
+              Executive reporting on municipal grievance resolution efficiency, departmental throughput and trends.
+            </p>
+          </div>
+          <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;">
+            <select id="date-range-filter" class="form-control" style="width:auto;font-weight:600;" onchange="setDateFilter(this.value)">
+              <option value="all">All Time History</option>
+              <option value="90">Last 90 Days</option>
+              <option value="30">Last 30 Days</option>
+              <option value="7">Last 7 Days</option>
+            </select>
+            <button class="btn btn-secondary btn-sm" onclick="exportAdminCSV()">
+              <i data-lucide="download"></i> Export Full CSV
+            </button>
+            <button class="btn btn-primary btn-sm" onclick="window.print()">
+              <i data-lucide="printer"></i> Print Report
+            </button>
+          </div>
+        </div>
+
+        <div id="analytics-summary-container"></div>
+
+        <div class="dashboard-grid">
+          <div class="card">
+            <div class="card-header">
+              <h3>Complaints by Category</h3>
+            </div>
+            <div class="card-body">
+              <div class="chart-container"><canvas id="report-cat-chart"></canvas></div>
+            </div>
+          </div>
+          <div class="card">
+            <div class="card-header">
+              <h3>Departmental Resolution Performance</h3>
+            </div>
+            <div class="card-body">
+              <div class="chart-container"><canvas id="report-dept-chart"></canvas></div>
+            </div>
+          </div>
+        </div>
+
+        <div class="table-card" style="margin-top:24px;">
+          <div class="table-header">
+            <h3>Departmental Resolution Metrics</h3>
+          </div>
+          <div class="table-container">
+            <table class="data-table">
+              <thead>
+                <tr>
+                  <th>Department</th>
+                  <th>Staff Officers</th>
+                  <th>Total Complaints</th>
+                  <th>Pending</th>
+                  <th>In Progress</th>
+                  <th>Resolved / Closed</th>
+                  <th>Resolution Rate</th>
+                </tr>
+              </thead>
+              <tbody id="dept-metrics-tbody"></tbody>
+            </table>
+          </div>
+        </div>
+      `;
+      lucide.createIcons();
+
+      renderAnalytics();
+    });
+
+    function setDateFilter(val) {
+      currentDateFilter = val;
+      renderAnalytics();
+    }
+
+    function getFilteredData() {
+      const all = getComplaints();
+      if (currentDateFilter === 'all') return all;
+
+      const days = parseInt(currentDateFilter);
+      const cutoff = new Date();
+      cutoff.setDate(cutoff.getDate() - days);
+
+      return all.filter(c => new Date(c.createdAt) >= cutoff);
+    }
+
+    function renderAnalytics() {
+      const complaints = getFilteredData();
+      const departments = getDepartments();
+      const users = getUsers();
+
+      const total = complaints.length;
+      const pending = complaints.filter(c => c.status === 'Pending').length;
+      const assigned = complaints.filter(c => c.status === 'Assigned').length;
+      const inProgress = complaints.filter(c => c.status === 'In Progress').length;
+      const resolved = complaints.filter(c => c.status === 'Resolved' || c.status === 'Closed').length;
+      const rate = total > 0 ? Math.round((resolved / total) * 100) : 0;
+
+      // Summary Cards
+      const summaryContainer = document.getElementById('analytics-summary-container');
+      summaryContainer.innerHTML = `
+        <div class="stats-grid">
+          <div class="stat-card">
+            <div class="stat-icon blue"><i data-lucide="file-check"></i></div>
+            <div class="stat-content">
+              <div class="stat-value">${total}</div>
+              <div class="stat-label">Total Logged</div>
+            </div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-icon amber"><i data-lucide="clock"></i></div>
+            <div class="stat-content">
+              <div class="stat-value">${pending + assigned}</div>
+              <div class="stat-label">Pending / Unaddressed</div>
+            </div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-icon green"><i data-lucide="check-circle-2"></i></div>
+            <div class="stat-content">
+              <div class="stat-value">${resolved}</div>
+              <div class="stat-label">Resolved & Closed</div>
+            </div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-icon info"><i data-lucide="percent"></i></div>
+            <div class="stat-content">
+              <div class="stat-value">${rate}%</div>
+              <div class="stat-label">Resolution Efficiency</div>
+            </div>
+          </div>
+        </div>
+      `;
+      lucide.createIcons();
+
+      // Department Metrics Table
+      const deptTbody = document.getElementById('dept-metrics-tbody');
+      deptTbody.innerHTML = departments.map(d => {
+        const dComplaints = complaints.filter(c => c.departmentId === d.id);
+        const dStaff = users.filter(u => u.role === 'staff' && u.departmentId === d.id && u.active);
+        const dPending = dComplaints.filter(c => c.status === 'Pending' || c.status === 'Assigned').length;
+        const dInProgress = dComplaints.filter(c => c.status === 'In Progress').length;
+        const dResolved = dComplaints.filter(c => c.status === 'Resolved' || c.status === 'Closed').length;
+        const dRate = dComplaints.length > 0 ? Math.round((dResolved / dComplaints.length) * 100) : 0;
+
+        return `
+          <tr>
+            <td>
+              <div style="font-weight:600;color:var(--text);">${d.name}</div>
+              <div style="font-size:0.75rem;color:var(--text-muted);">${d.description ? truncate(d.description, 35) : ''}</div>
+            </td>
+            <td>${dStaff.length} officers</td>
+            <td><strong>${dComplaints.length}</strong></td>
+            <td><span style="color:var(--amber);font-weight:600;">${dPending}</span></td>
+            <td><span style="color:var(--primary);font-weight:600;">${dInProgress}</span></td>
+            <td><span style="color:var(--green);font-weight:600;">${dResolved}</span></td>
+            <td>
+              <div style="display:flex;align-items:center;gap:8px;">
+                <div style="flex:1;height:6px;background:var(--border-light);border-radius:var(--radius-full);overflow:hidden;min-width:60px;">
+                  <div style="width:${dRate}%;height:100%;background:${dRate >= 70 ? 'var(--green)' : dRate >= 40 ? 'var(--primary)' : 'var(--amber)'};"></div>
+                </div>
+                <span style="font-size:0.8rem;font-weight:600;min-width:32px;">${dRate}%</span>
+              </div>
+            </td>
+          </tr>
+        `;
+      }).join('');
+
+      // Charts
+      renderCharts(complaints, departments);
+    }
+
+    function renderCharts(complaints, departments) {
+      // Category chart
+      const catCounts = {};
+      complaints.forEach(c => {
+        catCounts[c.category] = (catCounts[c.category] || 0) + 1;
+      });
+
+      if (catChartInstance) catChartInstance.destroy();
+      const ctxCat = document.getElementById('report-cat-chart').getContext('2d');
+      catChartInstance = new Chart(ctxCat, {
+        type: 'doughnut',
+        data: {
+          labels: Object.keys(catCounts).length > 0 ? Object.keys(catCounts) : ['None'],
+          datasets: [{
+            data: Object.values(catCounts).length > 0 ? Object.values(catCounts) : [1],
+            backgroundColor: ['#4568F5', '#16B8A6', '#F79009', '#12B76A', '#2E90FA', '#F04438', '#98A2B3'],
+            borderWidth: 0,
+            hoverOffset: 6
+          }]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          plugins: {
+            legend: { position: 'bottom', labels: { boxWidth: 12, padding: 12, font: { family: 'Inter', size: 11 } } }
+          },
+          cutout: '60%'
+        }
+      });
+
+      // Department comparison chart
+      if (deptChartInstance) deptChartInstance.destroy();
+      const ctxDept = document.getElementById('report-dept-chart').getContext('2d');
+
+      const labels = departments.map(d => d.name);
+      const resolvedData = departments.map(d => complaints.filter(c => c.departmentId === d.id && (c.status === 'Resolved' || c.status === 'Closed')).length);
+      const pendingData = departments.map(d => complaints.filter(c => c.departmentId === d.id && (c.status !== 'Resolved' && c.status !== 'Closed')).length);
+
+      deptChartInstance = new Chart(ctxDept, {
+        type: 'bar',
+        data: {
+          labels,
+          datasets: [
+            {
+              label: 'Resolved / Closed',
+              data: resolvedData,
+              backgroundColor: '#12B76A',
+              borderRadius: 4
+            },
+            {
+              label: 'Pending / In Progress',
+              data: pendingData,
+              backgroundColor: '#F79009',
+              borderRadius: 4
+            }
+          ]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          plugins: {
+            legend: { position: 'bottom', labels: { boxWidth: 12, padding: 12, font: { family: 'Inter', size: 11 } } }
+          },
+          scales: {
+            y: { beginAtZero: true, stacked: true, ticks: { precision: 0 } },
+            x: { stacked: true, grid: { display: false }, ticks: { font: { family: 'Inter', size: 11 } } }
+          }
+        }
+      });
+    }
+
+    function exportAdminCSV() {
+      const complaints = getFilteredData();
+      if (complaints.length === 0) {
+        showToast('No complaint data available to export.', 'info');
+        return;
+      }
+
+      const headers = ['Complaint ID', 'Title', 'Citizen Name', 'Category', 'Location', 'Priority', 'Department', 'Assigned Staff', 'Status', 'Submitted Date', 'Last Updated', 'Resolution Notes'];
+      const rows = complaints.map(c => {
+        const citizen = getUserById(c.citizenId);
+        const dept = c.departmentId ? getDepartmentById(c.departmentId) : null;
+        const staff = c.assignedStaffId ? getUserById(c.assignedStaffId) : null;
+
+        return [
+          c.id,
+          `"${(c.title || '').replace(/"/g, '""')}"`,
+          `"${(citizen ? citizen.name : 'Unknown').replace(/"/g, '""')}"`,
+          c.category,
+          `"${(c.location || '').replace(/"/g, '""')}"`,
+          c.priority,
+          `"${(dept ? dept.name : 'Unassigned').replace(/"/g, '""')}"`,
+          `"${(staff ? staff.name : 'Unassigned').replace(/"/g, '""')}"`,
+          c.status,
+          c.createdAt,
+          c.updatedAt,
+          `"${(c.resolutionNotes || '').replace(/"/g, '""')}"`
+        ];
+      });
+
+      const csvContent = 'data:text/csv;charset=utf-8,' + [headers.join(','), ...rows.map(e => e.join(','))].join('\n');
+      const encodedUri = encodeURI(csvContent);
+      const link = document.createElement('a');
+      link.setAttribute('href', encodedUri);
+      link.setAttribute('download', `SCMS_Master_Report_${new Date().toISOString().split('T')[0]}.csv`);
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      showToast('Master complaints report exported as CSV.', 'success');
+    }
+  </script>
+</body>
+</html>

@@ -1,0 +1,290 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Admin Dashboard — SCMS</title>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="css/style.css">
+  <link rel="stylesheet" href="css/responsive.css">
+  <script src="https://unpkg.com/lucide@latest/dist/umd/lucide.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4"></script>
+</head>
+<body>
+  <div class="dashboard-layout">
+    <aside class="sidebar" id="sidebar"></aside>
+    <div class="main-content">
+      <header class="topbar" id="topbar"></header>
+      <main class="page-content" id="page-content"></main>
+    </div>
+  </div>
+
+  <script src="js/storage.js"></script>
+  <script src="js/auth.js"></script>
+  <script src="js/ui.js"></script>
+  <script>
+    document.addEventListener('DOMContentLoaded', () => {
+      const session = requireAuth(['admin']);
+      if (!session) return;
+      renderDashboardLayout('admin', 'dashboard');
+
+      const stats = getComplaintStats();
+      const userStats = getUserStats();
+      const depts = getDepartments();
+      const allComplaints = getComplaints();
+
+      const urgentComplaints = allComplaints.filter(c => 
+        (c.priority === 'Urgent' || c.priority === 'High') && 
+        (c.status === 'Pending' || c.status === 'Assigned')
+      );
+
+      const resolutionRate = stats.total > 0 ? Math.round(((stats.resolved + stats.closed) / stats.total) * 100) : 0;
+
+      const content = document.getElementById('page-content');
+      content.innerHTML = `
+        <div class="welcome-banner" style="background: linear-gradient(135deg, #101828, #16B8A6);">
+          <div>
+            <h2>City Administration Command Center</h2>
+            <p>Real-time analytics, department allocation and systemic governance oversight.</p>
+          </div>
+          <div style="display:flex;gap:10px;flex-wrap:wrap;">
+            <a href="assign-complaints.html" class="btn" style="background:#fff;color:var(--navy);font-weight:600;"><i data-lucide="user-check"></i> Assign Pending (${stats.pending})</a>
+            <a href="reports.html" class="btn" style="background:rgba(255,255,255,0.2);color:#fff;"><i data-lucide="bar-chart-3"></i> Reports</a>
+          </div>
+        </div>
+
+        <div class="stats-grid">
+          <div class="stat-card">
+            <div class="stat-icon blue"><i data-lucide="file-text"></i></div>
+            <div class="stat-content">
+              <div class="stat-value">${stats.total}</div>
+              <div class="stat-label">Total Complaints</div>
+            </div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-icon amber"><i data-lucide="clock"></i></div>
+            <div class="stat-content">
+              <div class="stat-value">${stats.pending}</div>
+              <div class="stat-label">Pending Action</div>
+            </div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-icon info"><i data-lucide="loader"></i></div>
+            <div class="stat-content">
+              <div class="stat-value">${stats.inProgress + stats.assigned}</div>
+              <div class="stat-label">In Processing</div>
+            </div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-icon green"><i data-lucide="check-circle-2"></i></div>
+            <div class="stat-content">
+              <div class="stat-value">${stats.resolved + stats.closed}</div>
+              <div class="stat-label">Resolved / Closed (${resolutionRate}%)</div>
+            </div>
+          </div>
+        </div>
+
+        <div class="stats-grid" style="grid-template-columns: repeat(3, 1fr); margin-top:-4px; margin-bottom:24px;">
+          <div class="stat-card" style="padding:16px 20px;">
+            <div class="stat-icon" style="background:#F0F4FF;color:var(--primary);"><i data-lucide="users"></i></div>
+            <div class="stat-content">
+              <div class="stat-value" style="font-size:1.4rem;">${userStats.total}</div>
+              <div class="stat-label">Users (${userStats.citizens} Citizens, ${userStats.staff} Staff)</div>
+            </div>
+          </div>
+          <div class="stat-card" style="padding:16px 20px;">
+            <div class="stat-icon" style="background:#ECFDF5;color:var(--teal);"><i data-lucide="building-2"></i></div>
+            <div class="stat-content">
+              <div class="stat-value" style="font-size:1.4rem;">${depts.length}</div>
+              <div class="stat-label">Active Municipal Departments</div>
+            </div>
+          </div>
+          <div class="stat-card" style="padding:16px 20px;">
+            <div class="stat-icon" style="background:#FEF3F2;color:var(--red);"><i data-lucide="alert-triangle"></i></div>
+            <div class="stat-content">
+              <div class="stat-value" style="font-size:1.4rem;">${urgentComplaints.length}</div>
+              <div class="stat-label">High Priority Unresolved</div>
+            </div>
+          </div>
+        </div>
+
+        ${urgentComplaints.length > 0 ? `
+          <div class="card" style="margin-bottom:24px;border-left:4px solid var(--red);">
+            <div class="card-header" style="background:#FFFBFB;">
+              <h3 style="color:#B42318;display:flex;align-items:center;gap:8px;">
+                <i data-lucide="flame" style="width:20px;height:20px;"></i> High & Urgent Priority Requiring Assignment
+              </h3>
+              <a href="assign-complaints.html" class="btn btn-danger btn-sm">Assign All</a>
+            </div>
+            <div class="card-body" style="padding:0;">
+              <table class="data-table">
+                <thead>
+                  <tr>
+                    <th>ID</th>
+                    <th>Title</th>
+                    <th>Category</th>
+                    <th>Location</th>
+                    <th>Priority</th>
+                    <th>Status</th>
+                    <th>Submitted</th>
+                    <th>Action</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  ${urgentComplaints.slice(0, 4).map(c => `
+                    <tr>
+                      <td><span class="complaint-id-badge" style="background:#FEE4E2;color:#D92D20;">${c.id}</span></td>
+                      <td style="font-weight:600;">${c.title}</td>
+                      <td>${c.category}</td>
+                      <td>${truncate(c.location, 24)}</td>
+                      <td>${priorityBadge(c.priority)}</td>
+                      <td>${statusBadge(c.status)}</td>
+                      <td>${timeAgo(c.createdAt)}</td>
+                      <td>
+                        <a href="complaint-details.html?id=${c.id}" class="btn btn-primary btn-sm">Assign / Review</a>
+                      </td>
+                    </tr>
+                  `).join('')}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        ` : ''}
+
+        <div class="dashboard-grid">
+          <div class="card">
+            <div class="card-header">
+              <h3>Department Complaints Distribution</h3>
+            </div>
+            <div class="card-body">
+              <div class="chart-container"><canvas id="dept-chart"></canvas></div>
+            </div>
+          </div>
+          <div class="card">
+            <div class="card-header">
+              <h3>Priority & Urgency Distribution</h3>
+            </div>
+            <div class="card-body">
+              <div class="chart-container"><canvas id="priority-chart"></canvas></div>
+            </div>
+          </div>
+        </div>
+
+        <div class="table-card" style="margin-top:24px;">
+          <div class="table-header">
+            <h3>Recent Complaints Received</h3>
+            <div style="display:flex;gap:8px;">
+              <a href="manage-complaints.html" class="btn btn-secondary btn-sm">Manage All (${allComplaints.length})</a>
+            </div>
+          </div>
+          <div class="table-container">
+            <table class="data-table">
+              <thead>
+                <tr>
+                  <th>ID</th>
+                  <th>Title & Citizen</th>
+                  <th>Department</th>
+                  <th>Assigned Staff</th>
+                  <th>Priority</th>
+                  <th>Status</th>
+                  <th>Submitted</th>
+                  <th>Actions</th>
+                </tr>
+              </thead>
+              <tbody id="recent-complaints-tbody"></tbody>
+            </table>
+          </div>
+        </div>
+      `;
+      lucide.createIcons();
+
+      // Recent complaints table
+      const tbody = document.getElementById('recent-complaints-tbody');
+      const recentList = allComplaints.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt)).slice(0, 6);
+
+      tbody.innerHTML = recentList.map(c => {
+        const citizen = getUserById(c.citizenId);
+        const dept = c.departmentId ? getDepartmentById(c.departmentId) : null;
+        const staff = c.assignedStaffId ? getUserById(c.assignedStaffId) : null;
+        return `
+          <tr>
+            <td><span class="complaint-id-badge">${c.id}</span></td>
+            <td>
+              <div style="font-weight:600;color:var(--text);">${c.title}</div>
+              <div style="font-size:0.75rem;color:var(--text-muted);">${citizen ? citizen.name : 'Unknown Citizen'} (${c.category})</div>
+            </td>
+            <td>
+              ${dept ? `<span class="dept-pill">${dept.name}</span>` : '<span style="color:var(--text-muted);font-size:0.8rem;">Unassigned</span>'}
+            </td>
+            <td>
+              ${staff ? `<div style="font-size:0.85rem;font-weight:500;">${staff.name}</div>` : '<span style="color:var(--text-muted);font-size:0.8rem;">—</span>'}
+            </td>
+            <td>${priorityBadge(c.priority)}</td>
+            <td>${statusBadge(c.status)}</td>
+            <td>${timeAgo(c.createdAt)}</td>
+            <td>
+              <div class="table-actions">
+                <a href="complaint-details.html?id=${c.id}" class="btn btn-secondary btn-sm" title="View details">
+                  <i data-lucide="eye"></i> View
+                </a>
+              </div>
+            </td>
+          </tr>
+        `;
+      }).join('');
+      lucide.createIcons();
+
+      // Department complaints chart
+      const deptLabels = depts.map(d => d.name);
+      const deptData = depts.map(d => allComplaints.filter(c => c.departmentId === d.id).length);
+
+      new Chart(document.getElementById('dept-chart'), {
+        type: 'bar',
+        data: {
+          labels: deptLabels,
+          datasets: [{
+            label: 'Complaints',
+            data: deptData,
+            backgroundColor: '#4568F5',
+            borderRadius: 6
+          }]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          plugins: { legend: { display: false } },
+          scales: {
+            y: { beginAtZero: true, ticks: { precision: 0 } },
+            x: { grid: { display: false }, ticks: { font: { family: 'Inter', size: 11 } } }
+          }
+        }
+      });
+
+      // Priority chart
+      const priorities = ['Low', 'Medium', 'High', 'Urgent'];
+      const priorityCounts = priorities.map(p => allComplaints.filter(c => c.priority === p).length);
+
+      new Chart(document.getElementById('priority-chart'), {
+        type: 'doughnut',
+        data: {
+          labels: priorities,
+          datasets: [{
+            data: priorityCounts,
+            backgroundColor: ['#98A2B3', '#2E90FA', '#F79009', '#F04438'],
+            borderWidth: 0,
+            hoverOffset: 6
+          }]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          plugins: {
+            legend: { position: 'bottom', labels: { padding: 14, usePointStyle: true, font: { family: 'Inter' } } }
+          },
+          cutout: '65%'
+        }
+      });
+    });
+  </script>
+</body>
+</html>

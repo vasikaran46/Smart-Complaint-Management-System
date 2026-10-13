@@ -1,0 +1,74 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Services — SCMS</title>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="css/style.css">
+  <link rel="stylesheet" href="css/responsive.css">
+  <script src="https://unpkg.com/lucide@latest/dist/umd/lucide.js"></script>
+</head>
+<body>
+  <nav class="public-navbar" id="public-navbar"></nav>
+  <section class="page-banner">
+    <div class="container">
+      <h1>Our Services</h1>
+      <p>Comprehensive complaint management across all major civic service departments.</p>
+    </div>
+  </section>
+
+  <section class="content-section">
+    <div class="container">
+      <div class="services-grid">
+        <div class="service-card">
+          <div class="service-icon" style="background:var(--amber-subtle);color:var(--amber);"><i data-lucide="hard-hat"></i></div>
+          <h3>Infrastructure</h3>
+          <p>Report issues with roads, bridges, buildings, public spaces, and structural concerns.</p>
+        </div>
+        <div class="service-card">
+          <div class="service-icon" style="background:var(--blue-info-subtle);color:var(--blue-info);"><i data-lucide="droplets"></i></div>
+          <h3>Water Supply</h3>
+          <p>Raise concerns about water quality, supply disruptions, pipeline leaks, and water pressure issues.</p>
+        </div>
+        <div class="service-card">
+          <div class="service-icon" style="background:var(--amber-subtle);color:var(--amber);"><i data-lucide="zap"></i></div>
+          <h3>Electricity</h3>
+          <p>Report power outages, faulty streetlights, electrical hazards, and transformer issues.</p>
+        </div>
+        <div class="service-card">
+          <div class="service-icon" style="background:var(--green-subtle);color:var(--green);"><i data-lucide="trash-2"></i></div>
+          <h3>Sanitation</h3>
+          <p>File complaints about waste management, garbage collection, drainage, and cleanliness.</p>
+        </div>
+        <div class="service-card">
+          <div class="service-icon" style="background:var(--primary-subtle);color:var(--primary);"><i data-lucide="bus"></i></div>
+          <h3>Transportation</h3>
+          <p>Report issues with public transport, traffic signals, road safety, and traffic management.</p>
+        </div>
+        <div class="service-card">
+          <div class="service-icon" style="background:var(--red-subtle);color:var(--red);"><i data-lucide="shield"></i></div>
+          <h3>Public Safety</h3>
+          <p>Raise concerns about security, unauthorized constructions, emergency services, and safety hazards.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="cta-section">
+    <div class="container">
+      <h2>Have an Issue to Report?</h2>
+      <p>Select the relevant category when you submit your complaint and it will be routed to the right department.</p>
+      <a href="register.html" class="btn btn-primary btn-lg"><i data-lucide="plus-circle"></i> Submit a Complaint</a>
+    </div>
+  </section>
+
+  <footer class="public-footer" id="public-footer"></footer>
+  <script src="js/storage.js"></script>
+  <script src="js/auth.js"></script>
+  <script src="js/ui.js"></script>
+  <script>
+    document.addEventListener('DOMContentLoaded', () => { renderPublicNavbar('services'); renderPublicFooter(); lucide.createIcons(); });
+  </script>
+</body>
+</html>

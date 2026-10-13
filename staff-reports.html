@@ -1,0 +1,234 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Staff Performance Reports — SCMS</title>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="css/style.css">
+  <link rel="stylesheet" href="css/responsive.css">
+  <script src="https://unpkg.com/lucide@latest/dist/umd/lucide.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4"></script>
+</head>
+<body>
+  <div class="dashboard-layout">
+    <aside class="sidebar" id="sidebar"></aside>
+    <div class="main-content">
+      <header class="topbar" id="topbar"></header>
+      <main class="page-content" id="page-content"></main>
+    </div>
+  </div>
+
+  <script src="js/storage.js"></script>
+  <script src="js/auth.js"></script>
+  <script src="js/ui.js"></script>
+  <script>
+    document.addEventListener('DOMContentLoaded', () => {
+      const session = requireAuth(['staff']);
+      if (!session) return;
+      renderDashboardLayout('staff', 'reports');
+
+      const user = getCurrentUser();
+      const userDept = user.departmentId ? getDepartmentById(user.departmentId) : null;
+      const deptComplaints = user.departmentId ? getComplaintsByDepartment(user.departmentId) : [];
+      const myComplaints = getComplaintsByStaff(session.userId);
+
+      const totalHandled = myComplaints.length;
+      const resolved = myComplaints.filter(c => c.status === 'Resolved' || c.status === 'Closed').length;
+      const inProgress = myComplaints.filter(c => c.status === 'In Progress').length;
+      const rate = totalHandled > 0 ? Math.round((resolved / totalHandled) * 100) : 0;
+
+      const content = document.getElementById('page-content');
+      content.innerHTML = `
+        <div class="page-header">
+          <div>
+            <h1>Department & Staff Performance</h1>
+            <p style="color:var(--text-muted);font-size:0.9rem;margin-top:4px;">
+              Live operational metrics for ${userDept ? userDept.name : 'Department'} and Staff Member ${user.name}.
+            </p>
+          </div>
+          <div style="display:flex;gap:10px;">
+            <button class="btn btn-secondary btn-sm" onclick="exportStaffCSV()">
+              <i data-lucide="download"></i> Export CSV
+            </button>
+            <button class="btn btn-primary btn-sm" onclick="window.print()">
+              <i data-lucide="printer"></i> Print Report
+            </button>
+          </div>
+        </div>
+
+        <div class="stats-grid">
+          <div class="stat-card">
+            <div class="stat-icon blue"><i data-lucide="clipboard-check"></i></div>
+            <div class="stat-content">
+              <div class="stat-value">${totalHandled}</div>
+              <div class="stat-label">Total Assigned</div>
+            </div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-icon green"><i data-lucide="check-circle-2"></i></div>
+            <div class="stat-content">
+              <div class="stat-value">${resolved}</div>
+              <div class="stat-label">Resolved & Closed</div>
+            </div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-icon info"><i data-lucide="activity"></i></div>
+            <div class="stat-content">
+              <div class="stat-value">${rate}%</div>
+              <div class="stat-label">Resolution Rate</div>
+            </div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-icon amber"><i data-lucide="building-2"></i></div>
+            <div class="stat-content">
+              <div class="stat-value">${deptComplaints.length}</div>
+              <div class="stat-label">Dept Total Load</div>
+            </div>
+          </div>
+        </div>
+
+        <div class="dashboard-grid">
+          <div class="card">
+            <div class="card-header">
+              <h3>Department Category Distribution</h3>
+            </div>
+            <div class="card-body">
+              <div class="chart-container"><canvas id="cat-chart"></canvas></div>
+            </div>
+          </div>
+          <div class="card">
+            <div class="card-header">
+              <h3>Staff Workload Status</h3>
+            </div>
+            <div class="card-body">
+              <div class="chart-container"><canvas id="load-chart"></canvas></div>
+            </div>
+          </div>
+        </div>
+
+        <div class="table-card" style="margin-top:24px;">
+          <div class="table-header">
+            <h3>Staff Assigned Complaints Log</h3>
+          </div>
+          <div class="table-container">
+            <table class="data-table">
+              <thead>
+                <tr>
+                  <th>ID</th>
+                  <th>Title</th>
+                  <th>Category</th>
+                  <th>Priority</th>
+                  <th>Status</th>
+                  <th>Created</th>
+                  <th>Last Update</th>
+                </tr>
+              </thead>
+              <tbody>
+                ${myComplaints.length === 0 ? `
+                  <tr><td colspan="7" style="text-align:center;padding:32px;color:var(--text-muted);">No records found.</td></tr>
+                ` : myComplaints.map(c => `
+                  <tr>
+                    <td><span class="complaint-id-badge">${c.id}</span></td>
+                    <td style="font-weight:600;">${c.title}</td>
+                    <td>${c.category}</td>
+                    <td>${priorityBadge(c.priority)}</td>
+                    <td>${statusBadge(c.status)}</td>
+                    <td>${formatDate(c.createdAt)}</td>
+                    <td>${timeAgo(c.updatedAt)}</td>
+                  </tr>
+                `).join('')}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      `;
+      lucide.createIcons();
+
+      // Category chart
+      const catCounts = {};
+      const targetComplaints = deptComplaints.length > 0 ? deptComplaints : myComplaints;
+      targetComplaints.forEach(c => {
+        catCounts[c.category] = (catCounts[c.category] || 0) + 1;
+      });
+
+      new Chart(document.getElementById('cat-chart'), {
+        type: 'pie',
+        data: {
+          labels: Object.keys(catCounts),
+          datasets: [{
+            data: Object.values(catCounts),
+            backgroundColor: ['#4568F5', '#16B8A6', '#F79009', '#12B76A', '#2E90FA', '#F04438'],
+            borderWidth: 0
+          }]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          plugins: { legend: { position: 'bottom', labels: { boxWidth: 12, font: { family: 'Inter' } } } }
+        }
+      });
+
+      // Status load chart
+      const statusCounts = {
+        'Assigned': myComplaints.filter(c => c.status === 'Assigned').length,
+        'In Progress': inProgress,
+        'Resolved': myComplaints.filter(c => c.status === 'Resolved').length,
+        'Closed': myComplaints.filter(c => c.status === 'Closed').length
+      };
+
+      new Chart(document.getElementById('load-chart'), {
+        type: 'bar',
+        data: {
+          labels: Object.keys(statusCounts),
+          datasets: [{
+            label: 'Complaints',
+            data: Object.values(statusCounts),
+            backgroundColor: ['#2E90FA', '#4568F5', '#12B76A', '#98A2B3'],
+            borderRadius: 6
+          }]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          plugins: { legend: { display: false } },
+          scales: { y: { beginAtZero: true, ticks: { precision: 0 } }, x: { grid: { display: false } } }
+        }
+      });
+    });
+
+    function exportStaffCSV() {
+      const session = getSession();
+      const complaints = getComplaintsByStaff(session.userId);
+
+      if (complaints.length === 0) {
+        showToast('No complaints to export.', 'info');
+        return;
+      }
+
+      const headers = ['ID', 'Title', 'Category', 'Location', 'Priority', 'Status', 'Created At', 'Updated At', 'Resolution Notes'];
+      const rows = complaints.map(c => [
+        c.id,
+        `"${(c.title || '').replace(/"/g, '""')}"`,
+        c.category,
+        `"${(c.location || '').replace(/"/g, '""')}"`,
+        c.priority,
+        c.status,
+        c.createdAt,
+        c.updatedAt,
+        `"${(c.resolutionNotes || '').replace(/"/g, '""')}"`
+      ]);
+
+      const csvContent = 'data:text/csv;charset=utf-8,' + [headers.join(','), ...rows.map(e => e.join(','))].join('\n');
+      const encodedUri = encodeURI(csvContent);
+      const link = document.createElement('a');
+      link.setAttribute('href', encodedUri);
+      link.setAttribute('download', `Staff_Report_${session.userId}_${new Date().toISOString().split('T')[0]}.csv`);
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      showToast('Staff report exported as CSV.', 'success');
+    }
+  </script>
+</body>
+</html>

@@ -1,0 +1,262 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Assign Complaints — SCMS Admin</title>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="css/style.css">
+  <link rel="stylesheet" href="css/responsive.css">
+  <script src="https://unpkg.com/lucide@latest/dist/umd/lucide.js"></script>
+</head>
+<body>
+  <div class="dashboard-layout">
+    <aside class="sidebar" id="sidebar"></aside>
+    <div class="main-content">
+      <header class="topbar" id="topbar"></header>
+      <main class="page-content">
+        <div class="page-header">
+          <div>
+            <h1>Complaint Assignment Queue</h1>
+            <p style="color:var(--text-muted);font-size:0.9rem;margin-top:4px;">Direct dispatch queue for pending and unassigned citizen grievances.</p>
+          </div>
+          <div style="display:flex;gap:10px;">
+            <a href="manage-complaints.html" class="btn btn-secondary btn-sm">
+              <i data-lucide="list"></i> All Complaints
+            </a>
+          </div>
+        </div>
+
+        <div class="stats-grid" style="grid-template-columns: repeat(3, 1fr); margin-bottom:24px;">
+          <div class="stat-card">
+            <div class="stat-icon amber"><i data-lucide="inbox"></i></div>
+            <div class="stat-content">
+              <div class="stat-value" id="stat-pending">0</div>
+              <div class="stat-label">Pending Triage</div>
+            </div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-icon blue"><i data-lucide="alert-circle"></i></div>
+            <div class="stat-content">
+              <div class="stat-value" id="stat-unassigned">0</div>
+              <div class="stat-label">No Department Assigned</div>
+            </div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-icon info"><i data-lucide="user-x"></i></div>
+            <div class="stat-content">
+              <div class="stat-value" id="stat-no-staff">0</div>
+              <div class="stat-label">No Staff Assigned</div>
+            </div>
+          </div>
+        </div>
+
+        <div class="filter-bar">
+          <div class="search-input">
+            <i data-lucide="search"></i>
+            <input type="text" id="search" class="form-control" placeholder="Search unassigned complaints…">
+          </div>
+          <select id="filter-priority" class="form-control">
+            <option value="">All Priorities</option>
+            <option value="Urgent">Urgent</option>
+            <option value="High">High</option>
+            <option value="Medium">Medium</option>
+            <option value="Low">Low</option>
+          </select>
+          <select id="filter-category" class="form-control">
+            <option value="">All Categories</option>
+            <option value="Infrastructure">Infrastructure</option>
+            <option value="Water Supply">Water Supply</option>
+            <option value="Electricity">Electricity</option>
+            <option value="Sanitation">Sanitation</option>
+            <option value="Transportation">Transportation</option>
+            <option value="Public Safety">Public Safety</option>
+            <option value="Other">Other</option>
+          </select>
+        </div>
+
+        <div class="table-card">
+          <div class="table-header">
+            <h3>Pending Assignment List</h3>
+          </div>
+          <div class="table-container">
+            <table class="data-table">
+              <thead>
+                <tr>
+                  <th>ID</th>
+                  <th>Title & Citizen</th>
+                  <th>Category</th>
+                  <th>Location</th>
+                  <th>Priority</th>
+                  <th>Target Department</th>
+                  <th>Staff Member</th>
+                  <th>Action</th>
+                </tr>
+              </thead>
+              <tbody id="assign-table-body"></tbody>
+            </table>
+          </div>
+        </div>
+      </main>
+    </div>
+  </div>
+
+  <script src="js/storage.js"></script>
+  <script src="js/auth.js"></script>
+  <script src="js/ui.js"></script>
+  <script>
+    document.addEventListener('DOMContentLoaded', () => {
+      const session = requireAuth(['admin']);
+      if (!session) return;
+      renderDashboardLayout('admin', 'assign');
+      lucide.createIcons();
+
+      ['search', 'filter-priority', 'filter-category'].forEach(id => {
+        document.getElementById(id).addEventListener(id === 'search' ? 'input' : 'change', renderQueue);
+      });
+
+      renderQueue();
+    });
+
+    function getQueueComplaints() {
+      const all = getComplaints();
+      const pendingList = all.filter(c => c.status === 'Pending' || !c.departmentId || !c.assignedStaffId);
+
+      document.getElementById('stat-pending').textContent = all.filter(c => c.status === 'Pending').length;
+      document.getElementById('stat-unassigned').textContent = all.filter(c => !c.departmentId).length;
+      document.getElementById('stat-no-staff').textContent = all.filter(c => !c.assignedStaffId && c.status !== 'Closed' && c.status !== 'Resolved').length;
+
+      const search = document.getElementById('search').value.toLowerCase().trim();
+      const priority = document.getElementById('filter-priority').value;
+      const category = document.getElementById('filter-category').value;
+
+      let filtered = pendingList;
+      if (search) {
+        filtered = filtered.filter(c => c.id.toLowerCase().includes(search) || c.title.toLowerCase().includes(search) || c.location.toLowerCase().includes(search));
+      }
+      if (priority) filtered = filtered.filter(c => c.priority === priority);
+      if (category) filtered = filtered.filter(c => c.category === category);
+
+      // Priority sort (Urgent first)
+      const pMap = { 'Urgent': 4, 'High': 3, 'Medium': 2, 'Low': 1 };
+      filtered.sort((a, b) => (pMap[b.priority] || 0) - (pMap[a.priority] || 0));
+
+      return filtered;
+    }
+
+    function renderQueue() {
+      const items = getQueueComplaints();
+      const tbody = document.getElementById('assign-table-body');
+      const departments = getDepartments();
+      const staffList = getUsers().filter(u => u.role === 'staff' && u.active);
+
+      if (items.length === 0) {
+        tbody.innerHTML = `
+          <tr>
+            <td colspan="8" style="text-align:center;padding:50px 20px;">
+              <div style="color:var(--green);font-size:1.15rem;font-weight:600;margin-bottom:6px;">
+                <i data-lucide="check-circle" style="width:28px;height:28px;vertical-align:middle;margin-right:8px;"></i>
+                Queue Cleared!
+              </div>
+              <p style="color:var(--text-muted);font-size:0.875rem;">All incoming complaints are assigned to active municipal departments and staff.</p>
+            </td>
+          </tr>
+        `;
+        lucide.createIcons();
+        return;
+      }
+
+      tbody.innerHTML = items.map(c => {
+        const citizen = getUserById(c.citizenId);
+        // Map category to department recommendation
+        const suggestedDept = departments.find(d => d.name.toLowerCase().includes(c.category.toLowerCase())) || departments[0];
+
+        return `
+          <tr id="row-${c.id}">
+            <td><span class="complaint-id-badge">${c.id}</span></td>
+            <td>
+              <div style="font-weight:600;color:var(--text);">${c.title}</div>
+              <div style="font-size:0.75rem;color:var(--text-muted);">By ${citizen ? citizen.name : 'Citizen'} &bull; ${timeAgo(c.createdAt)}</div>
+            </td>
+            <td>${c.category}</td>
+            <td>${truncate(c.location, 20)}</td>
+            <td>${priorityBadge(c.priority)}</td>
+            <td>
+              <select class="form-control" style="font-size:0.8rem;padding:6px 10px;" id="dept-for-${c.id}" onchange="changeDeptStaff('${c.id}', this.value)">
+                <option value="">-- Select Dept --</option>
+                ${departments.map(d => `
+                  <option value="${d.id}" ${(c.departmentId === d.id || (!c.departmentId && suggestedDept?.id === d.id)) ? 'selected' : ''}>
+                    ${d.name}
+                  </option>
+                `).join('')}
+              </select>
+            </td>
+            <td>
+              <select class="form-control" style="font-size:0.8rem;padding:6px 10px;" id="staff-for-${c.id}">
+                ${renderStaffOptions(c.departmentId || suggestedDept?.id, c.assignedStaffId)}
+              </select>
+            </td>
+            <td>
+              <button class="btn btn-primary btn-sm" onclick="dispatchAssignment('${c.id}')">
+                <i data-lucide="send"></i> Dispatch
+              </button>
+            </td>
+          </tr>
+        `;
+      }).join('');
+      lucide.createIcons();
+    }
+
+    function renderStaffOptions(deptId, currentStaffId) {
+      const allStaff = getUsers().filter(u => u.role === 'staff' && u.active);
+      const filtered = deptId ? allStaff.filter(s => s.departmentId === deptId) : allStaff;
+
+      return '<option value="">-- Unassigned --</option>' +
+        filtered.map(s => `<option value="${s.id}" ${s.id === currentStaffId ? 'selected' : ''}>${s.name}</option>`).join('');
+    }
+
+    function changeDeptStaff(complaintId, deptId) {
+      const staffSelect = document.getElementById(`staff-for-${complaintId}`);
+      if (staffSelect) {
+        staffSelect.innerHTML = renderStaffOptions(deptId, null);
+      }
+    }
+
+    function dispatchAssignment(complaintId) {
+      const session = getSession();
+      const current = getComplaintById(complaintId);
+      if (!current) return;
+
+      const deptId = document.getElementById(`dept-for-${complaintId}`).value;
+      const staffId = document.getElementById(`staff-for-${complaintId}`).value;
+
+      if (!deptId) {
+        showToast('Please select a department before dispatching.', 'warning');
+        return;
+      }
+
+      const dept = getDepartmentById(deptId);
+      const staff = staffId ? getUserById(staffId) : null;
+
+      updateComplaint(complaintId, {
+        departmentId: deptId,
+        assignedStaffId: staffId || null,
+        status: 'Assigned'
+      });
+
+      addComplaintHistory({
+        id: generateId('h_'),
+        complaintId,
+        previousStatus: current.status,
+        newStatus: 'Assigned',
+        remarks: `Assigned to ${dept ? dept.name : 'Department'}${staff ? ' (Officer: ' + staff.name + ')' : ''}`,
+        updatedBy: session.userId,
+        updatedAt: now()
+      });
+
+      showToast(`Complaint ${complaintId} dispatched successfully!`, 'success');
+      renderQueue();
+    }
+  </script>
+</body>
+</html>

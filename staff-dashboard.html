@@ -1,0 +1,238 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Staff Dashboard — SCMS</title>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="css/style.css">
+  <link rel="stylesheet" href="css/responsive.css">
+  <script src="https://unpkg.com/lucide@latest/dist/umd/lucide.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4"></script>
+</head>
+<body>
+  <div class="dashboard-layout">
+    <aside class="sidebar" id="sidebar"></aside>
+    <div class="main-content">
+      <header class="topbar" id="topbar"></header>
+      <main class="page-content" id="page-content"></main>
+    </div>
+  </div>
+
+  <script src="js/storage.js"></script>
+  <script src="js/auth.js"></script>
+  <script src="js/ui.js"></script>
+  <script>
+    document.addEventListener('DOMContentLoaded', () => {
+      const session = requireAuth(['staff']);
+      if (!session) return;
+      renderDashboardLayout('staff', 'dashboard');
+
+      const user = getCurrentUser();
+      const userDept = user.departmentId ? getDepartmentById(user.departmentId) : null;
+      const deptName = userDept ? userDept.name : 'General Operations';
+
+      // Staff's assigned complaints
+      const assignedToMe = getComplaintsByStaff(session.userId);
+      // Or department complaints
+      const deptComplaints = user.departmentId ? getComplaintsByDepartment(user.departmentId) : [];
+
+      const pendingReview = assignedToMe.filter(c => c.status === 'Assigned' || c.status === 'Pending').length;
+      const inProgress = assignedToMe.filter(c => c.status === 'In Progress').length;
+      const resolved = assignedToMe.filter(c => c.status === 'Resolved' || c.status === 'Closed').length;
+      const urgentCount = assignedToMe.filter(c => c.priority === 'Urgent' && c.status !== 'Resolved' && c.status !== 'Closed').length;
+
+      const content = document.getElementById('page-content');
+      content.innerHTML = `
+        <div class="welcome-banner" style="background: linear-gradient(135deg, #101828, #4568F5);">
+          <div>
+            <h2>Welcome back, ${user.name}!</h2>
+            <p><i data-lucide="building-2" style="width:16px;height:16px;vertical-align:middle;"></i> Department: <strong>${deptName}</strong> | Staff ID: <strong>${user.id}</strong></p>
+          </div>
+          <a href="assigned-complaints.html" class="btn"><i data-lucide="clipboard-list"></i> View Assigned Complaints</a>
+        </div>
+
+        <div class="stats-grid">
+          <div class="stat-card">
+            <div class="stat-icon blue"><i data-lucide="inbox"></i></div>
+            <div class="stat-content">
+              <div class="stat-value">${assignedToMe.length}</div>
+              <div class="stat-label">My Assignments</div>
+            </div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-icon amber"><i data-lucide="clock"></i></div>
+            <div class="stat-content">
+              <div class="stat-value">${pendingReview}</div>
+              <div class="stat-label">Awaiting Action</div>
+            </div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-icon info"><i data-lucide="loader"></i></div>
+            <div class="stat-content">
+              <div class="stat-value">${inProgress}</div>
+              <div class="stat-label">In Progress</div>
+            </div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-icon green"><i data-lucide="check-circle-2"></i></div>
+            <div class="stat-content">
+              <div class="stat-value">${resolved}</div>
+              <div class="stat-label">Resolved / Closed</div>
+            </div>
+          </div>
+        </div>
+
+        ${urgentCount > 0 ? `
+          <div style="background:#FEF3F2;border:1px solid #FECDCA;border-radius:var(--radius-lg);padding:14px 20px;margin-bottom:24px;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px;">
+            <div style="display:flex;align-items:center;gap:12px;">
+              <i data-lucide="alert-octagon" style="color:var(--red);width:24px;height:24px;"></i>
+              <div>
+                <strong style="color:#B42318;">Attention Required:</strong>
+                <span style="color:#912018;font-size:0.9rem;"> You have <strong>${urgentCount}</strong> urgent complaint(s) requiring immediate resolution.</span>
+              </div>
+            </div>
+            <a href="assigned-complaints.html" class="btn btn-danger btn-sm">Resolve Now</a>
+          </div>
+        ` : ''}
+
+        <div class="dashboard-grid">
+          <div class="card">
+            <div class="card-header">
+              <h3>Status Distribution</h3>
+            </div>
+            <div class="card-body">
+              <div class="chart-container"><canvas id="staff-status-chart"></canvas></div>
+            </div>
+          </div>
+          <div class="card">
+            <div class="card-header">
+              <h3>Priority Breakdown</h3>
+            </div>
+            <div class="card-body">
+              <div class="chart-container"><canvas id="staff-priority-chart"></canvas></div>
+            </div>
+          </div>
+        </div>
+
+        <div class="table-card" style="margin-top:24px;">
+          <div class="table-header">
+            <h3>Active Assignments (${assignedToMe.filter(c => c.status !== 'Closed').length})</h3>
+            <a href="assigned-complaints.html" class="btn btn-ghost btn-sm">View All Assigned</a>
+          </div>
+          <div class="table-container">
+            <table class="data-table">
+              <thead>
+                <tr>
+                  <th>ID</th>
+                  <th>Title & Citizen</th>
+                  <th>Category</th>
+                  <th>Location</th>
+                  <th>Priority</th>
+                  <th>Status</th>
+                  <th>Created</th>
+                  <th>Action</th>
+                </tr>
+              </thead>
+              <tbody id="active-assignments-body"></tbody>
+            </table>
+          </div>
+        </div>
+      `;
+      lucide.createIcons();
+
+      // Populate table
+      const tableBody = document.getElementById('active-assignments-body');
+      const activeList = assignedToMe.filter(c => c.status !== 'Closed').slice(0, 5);
+
+      if (activeList.length === 0) {
+        tableBody.innerHTML = `<tr><td colspan="8" style="text-align:center;padding:32px;color:var(--text-muted);">No active complaints assigned to you right now.</td></tr>`;
+      } else {
+        tableBody.innerHTML = activeList.map(c => {
+          const citizen = getUserById(c.citizenId);
+          return `
+            <tr>
+              <td><span class="complaint-id-badge">${c.id}</span></td>
+              <td>
+                <div style="font-weight:600;color:var(--text);">${c.title}</div>
+                <div style="font-size:0.75rem;color:var(--text-muted);">By ${citizen ? citizen.name : 'Unknown Citizen'}</div>
+              </td>
+              <td><i data-lucide="${getCategoryIcon(c.category)}" style="width:14px;height:14px;vertical-align:middle;margin-right:4px;"></i>${c.category}</td>
+              <td>${truncate(c.location, 24)}</td>
+              <td>${priorityBadge(c.priority)}</td>
+              <td>${statusBadge(c.status)}</td>
+              <td>${timeAgo(c.createdAt)}</td>
+              <td>
+                <div class="table-actions">
+                  <a href="complaint-details.html?id=${c.id}" class="btn btn-primary btn-sm"><i data-lucide="external-link"></i> Process</a>
+                </div>
+              </td>
+            </tr>
+          `;
+        }).join('');
+      }
+      lucide.createIcons();
+
+      // Charts
+      const statusCounts = {
+        'Assigned': assignedToMe.filter(c => c.status === 'Assigned').length,
+        'In Progress': assignedToMe.filter(c => c.status === 'In Progress').length,
+        'Resolved': assignedToMe.filter(c => c.status === 'Resolved').length,
+        'Closed': assignedToMe.filter(c => c.status === 'Closed').length
+      };
+
+      new Chart(document.getElementById('staff-status-chart'), {
+        type: 'doughnut',
+        data: {
+          labels: Object.keys(statusCounts),
+          datasets: [{
+            data: Object.values(statusCounts),
+            backgroundColor: ['#2E90FA', '#4568F5', '#12B76A', '#98A2B3'],
+            borderWidth: 0,
+            hoverOffset: 6
+          }]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          plugins: {
+            legend: { position: 'bottom', labels: { padding: 14, usePointStyle: true, font: { family: 'Inter', size: 12 } } }
+          },
+          cutout: '65%'
+        }
+      });
+
+      const priorityCounts = {
+        'Low': assignedToMe.filter(c => c.priority === 'Low').length,
+        'Medium': assignedToMe.filter(c => c.priority === 'Medium').length,
+        'High': assignedToMe.filter(c => c.priority === 'High').length,
+        'Urgent': assignedToMe.filter(c => c.priority === 'Urgent').length
+      };
+
+      new Chart(document.getElementById('staff-priority-chart'), {
+        type: 'bar',
+        data: {
+          labels: Object.keys(priorityCounts),
+          datasets: [{
+            label: 'Complaints',
+            data: Object.values(priorityCounts),
+            backgroundColor: ['#98A2B3', '#2E90FA', '#F79009', '#F04438'],
+            borderRadius: 6
+          }]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          plugins: {
+            legend: { display: false }
+          },
+          scales: {
+            y: { beginAtZero: true, ticks: { precision: 0 } },
+            x: { grid: { display: false } }
+          }
+        }
+      });
+    });
+  </script>
+</body>
+</html>

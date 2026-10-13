@@ -1,0 +1,184 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Completed Complaints — SCMS</title>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="css/style.css">
+  <link rel="stylesheet" href="css/responsive.css">
+  <script src="https://unpkg.com/lucide@latest/dist/umd/lucide.js"></script>
+</head>
+<body>
+  <div class="dashboard-layout">
+    <aside class="sidebar" id="sidebar"></aside>
+    <div class="main-content">
+      <header class="topbar" id="topbar"></header>
+      <main class="page-content">
+        <div class="page-header">
+          <div>
+            <h1>Completed Complaints</h1>
+            <p style="color:var(--text-muted);font-size:0.9rem;margin-top:4px;">Archive of resolved and verified complaints handled by you and your department.</p>
+          </div>
+          <button class="btn btn-secondary btn-sm" onclick="window.print()">
+            <i data-lucide="printer"></i> Print Record
+          </button>
+        </div>
+
+        <div class="filter-bar">
+          <div class="search-input">
+            <i data-lucide="search"></i>
+            <input type="text" id="search" class="form-control" placeholder="Search resolved complaints…">
+          </div>
+          <select id="filter-category" class="form-control">
+            <option value="">All Categories</option>
+            <option value="Infrastructure">Infrastructure</option>
+            <option value="Water Supply">Water Supply</option>
+            <option value="Electricity">Electricity</option>
+            <option value="Sanitation">Sanitation</option>
+            <option value="Transportation">Transportation</option>
+            <option value="Public Safety">Public Safety</option>
+            <option value="Other">Other</option>
+          </select>
+          <select id="sort-order" class="form-control">
+            <option value="newest">Recently Resolved</option>
+            <option value="oldest">Oldest First</option>
+          </select>
+        </div>
+
+        <div class="table-card">
+          <div class="table-container">
+            <table class="data-table">
+              <thead>
+                <tr>
+                  <th>ID</th>
+                  <th>Title & Citizen</th>
+                  <th>Category</th>
+                  <th>Location</th>
+                  <th>Status</th>
+                  <th>Resolution Summary</th>
+                  <th>Resolved Date</th>
+                  <th>Action</th>
+                </tr>
+              </thead>
+              <tbody id="completed-table-body"></tbody>
+            </table>
+          </div>
+        </div>
+
+        <div id="pagination-container"></div>
+      </main>
+    </div>
+  </div>
+
+  <script src="js/storage.js"></script>
+  <script src="js/auth.js"></script>
+  <script src="js/ui.js"></script>
+  <script>
+    let currentPage = 1;
+    const PER_PAGE = 8;
+
+    document.addEventListener('DOMContentLoaded', () => {
+      const session = requireAuth(['staff']);
+      if (!session) return;
+      renderDashboardLayout('staff', 'completed');
+      lucide.createIcons();
+
+      ['search', 'filter-category', 'sort-order'].forEach(id => {
+        document.getElementById(id).addEventListener(id === 'search' ? 'input' : 'change', () => {
+          currentPage = 1;
+          renderComplaints();
+        });
+      });
+
+      renderComplaints();
+    });
+
+    function getCompletedList() {
+      const session = getSession();
+      const user = getCurrentUser();
+
+      // All complaints resolved or closed in staff's department or assigned to staff
+      let all = getComplaints().filter(c => 
+        (c.assignedStaffId === session.userId || (user.departmentId && c.departmentId === user.departmentId)) &&
+        (c.status === 'Resolved' || c.status === 'Closed')
+      );
+
+      const search = document.getElementById('search').value.toLowerCase().trim();
+      const category = document.getElementById('filter-category').value;
+      const sort = document.getElementById('sort-order').value;
+
+      if (search) {
+        all = all.filter(c => 
+          c.id.toLowerCase().includes(search) || 
+          c.title.toLowerCase().includes(search) ||
+          (c.resolutionNotes && c.resolutionNotes.toLowerCase().includes(search))
+        );
+      }
+      if (category) all = all.filter(c => c.category === category);
+
+      all.sort((a, b) => sort === 'newest'
+        ? new Date(b.updatedAt) - new Date(a.updatedAt)
+        : new Date(a.updatedAt) - new Date(b.updatedAt)
+      );
+
+      return all;
+    }
+
+    function renderComplaints() {
+      const filtered = getCompletedList();
+      const tableBody = document.getElementById('completed-table-body');
+      const paginationEl = document.getElementById('pagination-container');
+      const { items, totalPages } = paginate(filtered, currentPage, PER_PAGE);
+
+      if (filtered.length === 0) {
+        tableBody.innerHTML = `
+          <tr>
+            <td colspan="8" style="text-align:center;padding:48px 20px;">
+              <div style="color:var(--text-muted);font-size:1.1rem;margin-bottom:8px;">No completed complaints found.</div>
+              <p style="color:var(--text-secondary);font-size:0.875rem;">Resolved and closed complaints will appear here.</p>
+            </td>
+          </tr>
+        `;
+        paginationEl.innerHTML = '';
+        lucide.createIcons();
+        return;
+      }
+
+      tableBody.innerHTML = items.map(c => {
+        const citizen = getUserById(c.citizenId);
+        return `
+          <tr>
+            <td><span class="complaint-id-badge">${c.id}</span></td>
+            <td>
+              <div style="font-weight:600;color:var(--text);">${c.title}</div>
+              <div style="font-size:0.75rem;color:var(--text-muted);">By ${citizen ? citizen.name : 'Citizen'}</div>
+            </td>
+            <td>${c.category}</td>
+            <td>${truncate(c.location, 20)}</td>
+            <td>${statusBadge(c.status)}</td>
+            <td style="max-width:280px;font-size:0.85rem;color:var(--text-secondary);">
+              ${c.resolutionNotes ? truncate(c.resolutionNotes, 60) : '<em>No remarks recorded</em>'}
+            </td>
+            <td>${formatDate(c.updatedAt)}</td>
+            <td>
+              <a href="complaint-details.html?id=${c.id}" class="btn btn-secondary btn-sm">
+                <i data-lucide="eye"></i> View
+              </a>
+            </td>
+          </tr>
+        `;
+      }).join('');
+
+      renderPagination(paginationEl, currentPage, totalPages, goToPage);
+      lucide.createIcons();
+    }
+
+    function goToPage(page) {
+      currentPage = page;
+      renderComplaints();
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    }
+  </script>
+</body>
+</html>

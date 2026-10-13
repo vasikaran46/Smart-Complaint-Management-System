@@ -1,0 +1,112 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="Login to Smart Complaint Management System">
+  <title>Login — SCMS</title>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="css/style.css">
+  <link rel="stylesheet" href="css/responsive.css">
+  <script src="https://unpkg.com/lucide@latest/dist/umd/lucide.js"></script>
+</head>
+<body>
+  <div class="auth-page">
+    <div class="auth-card">
+      <a href="index.html" class="brand">
+        <div class="brand-icon"><i data-lucide="shield-check"></i></div>
+        <span>SCMS</span>
+      </a>
+      <h2>Welcome Back</h2>
+      <p class="auth-subtitle">Sign in to your account to continue</p>
+
+      <!-- Demo Accounts -->
+      <div class="demo-accounts">
+        <h4><i data-lucide="info"></i> Demo Accounts (Password: demo1234)</h4>
+        <div class="demo-account-item">
+          <span>Admin</span>
+          <button class="demo-fill-btn" onclick="fillDemo('admin@demo.com','demo1234')">admin@demo.com</button>
+        </div>
+        <div class="demo-account-item">
+          <span>Staff</span>
+          <button class="demo-fill-btn" onclick="fillDemo('staff@demo.com','demo1234')">staff@demo.com</button>
+        </div>
+        <div class="demo-account-item">
+          <span>Citizen</span>
+          <button class="demo-fill-btn" onclick="fillDemo('citizen@demo.com','demo1234')">citizen@demo.com</button>
+        </div>
+      </div>
+
+      <form id="login-form" novalidate>
+        <div class="form-group">
+          <label for="email" class="required">Email Address</label>
+          <input type="email" id="email" class="form-control" placeholder="Enter your email" autocomplete="email" required>
+          <div class="form-error" id="email-error"></div>
+        </div>
+        <div class="form-group">
+          <label for="password" class="required">Password</label>
+          <input type="password" id="password" class="form-control" placeholder="Enter your password" autocomplete="current-password" required>
+          <div class="form-error" id="password-error"></div>
+        </div>
+        <div class="form-error" id="login-error" style="margin-bottom:12px"></div>
+        <button type="submit" class="btn btn-primary btn-block btn-lg">
+          <i data-lucide="log-in"></i> Sign In
+        </button>
+      </form>
+
+      <p class="auth-footer">Don't have an account? <a href="register.html">Create one</a></p>
+      <p class="auth-footer" style="margin-top:8px;font-size:0.75rem;color:var(--text-muted);">
+        <i data-lucide="alert-triangle" style="width:12px;height:12px;vertical-align:middle;"></i>
+        This is demonstration authentication using localStorage. Not for production use.
+      </p>
+    </div>
+  </div>
+
+  <script src="js/storage.js"></script>
+  <script src="js/auth.js"></script>
+  <script src="js/ui.js"></script>
+  <script>
+    document.addEventListener('DOMContentLoaded', () => {
+      lucide.createIcons();
+      redirectIfLoggedIn();
+
+      document.getElementById('login-form').addEventListener('submit', (e) => {
+        e.preventDefault();
+        clearErrors();
+
+        const email = document.getElementById('email').value.trim();
+        const password = document.getElementById('password').value;
+
+        let valid = true;
+        if (!email) { showFieldError('email', 'Email is required'); valid = false; }
+        else if (!isValidEmail(email)) { showFieldError('email', 'Please enter a valid email'); valid = false; }
+        if (!password) { showFieldError('password', 'Password is required'); valid = false; }
+        if (!valid) return;
+
+        const result = loginUser(email, password);
+        if (result.success) {
+          showToast(`Welcome back, ${result.user.name}!`, 'success');
+          setTimeout(() => redirectToDashboard(result.user.role), 500);
+        } else {
+          document.getElementById('login-error').textContent = result.message;
+        }
+      });
+    });
+
+    function fillDemo(email, password) {
+      document.getElementById('email').value = email;
+      document.getElementById('password').value = password;
+    }
+
+    function showFieldError(field, msg) {
+      document.getElementById(field).classList.add('error');
+      document.getElementById(field + '-error').textContent = msg;
+    }
+
+    function clearErrors() {
+      document.querySelectorAll('.form-control.error').forEach(el => el.classList.remove('error'));
+      document.querySelectorAll('.form-error').forEach(el => el.textContent = '');
+    }
+  </script>
+</body>
+</html>

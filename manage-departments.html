@@ -1,0 +1,254 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Manage Departments — SCMS Admin</title>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="css/style.css">
+  <link rel="stylesheet" href="css/responsive.css">
+  <script src="https://unpkg.com/lucide@latest/dist/umd/lucide.js"></script>
+</head>
+<body>
+  <div class="dashboard-layout">
+    <aside class="sidebar" id="sidebar"></aside>
+    <div class="main-content">
+      <header class="topbar" id="topbar"></header>
+      <main class="page-content">
+        <div class="page-header">
+          <div>
+            <h1>Municipal Departments</h1>
+            <p style="color:var(--text-muted);font-size:0.9rem;margin-top:4px;">Manage administrative departments, oversee resolution staff and balance grievance loads.</p>
+          </div>
+          <button class="btn btn-primary" onclick="openAddDeptModal()">
+            <i data-lucide="plus-circle"></i> Add Department
+          </button>
+        </div>
+
+        <div class="services-grid" id="departments-grid" style="grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));"></div>
+      </main>
+    </div>
+  </div>
+
+  <script src="js/storage.js"></script>
+  <script src="js/auth.js"></script>
+  <script src="js/ui.js"></script>
+  <script>
+    document.addEventListener('DOMContentLoaded', () => {
+      const session = requireAuth(['admin']);
+      if (!session) return;
+      renderDashboardLayout('admin', 'departments');
+      lucide.createIcons();
+
+      renderDepartments();
+    });
+
+    function renderDepartments() {
+      const container = document.getElementById('departments-grid');
+      const departments = getDepartments();
+      const allComplaints = getComplaints();
+      const allUsers = getUsers();
+
+      if (departments.length === 0) {
+        container.innerHTML = emptyState('building-2', 'No Departments Found', 'Create your first municipal department to start organizing complaints.', '<button class="btn btn-primary btn-sm" onclick="openAddDeptModal()">Add Department</button>');
+        lucide.createIcons();
+        return;
+      }
+
+      container.innerHTML = departments.map(d => {
+        const deptComplaints = allComplaints.filter(c => c.departmentId === d.id);
+        const pending = deptComplaints.filter(c => c.status === 'Pending' || c.status === 'Assigned').length;
+        const resolved = deptComplaints.filter(c => c.status === 'Resolved' || c.status === 'Closed').length;
+        const staffMembers = allUsers.filter(u => u.role === 'staff' && u.departmentId === d.id && u.active);
+
+        return `
+          <div class="card" style="display:flex;flex-direction:column;justify-content:space-between;transition:transform 0.2s, box-shadow 0.2s;">
+            <div class="card-header" style="padding-bottom:12px;">
+              <div style="display:flex;align-items:center;gap:12px;">
+                <div style="width:42px;height:42px;border-radius:var(--radius-md);background:var(--primary-subtle);color:var(--primary);display:flex;align-items:center;justify-content:center;">
+                  <i data-lucide="building-2"></i>
+                </div>
+                <div>
+                  <h3 style="font-size:1.1rem;margin:0;">${d.name}</h3>
+                  <span style="font-size:0.75rem;color:var(--text-muted);font-family:monospace;">ID: ${d.id}</span>
+                </div>
+              </div>
+            </div>
+
+            <div class="card-body" style="padding-top:0;">
+              <p style="font-size:0.875rem;color:var(--text-secondary);min-height:42px;margin-bottom:16px;">
+                ${d.description || 'No description provided.'}
+              </p>
+
+              <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;background:#F9FAFB;padding:12px;border-radius:var(--radius);margin-bottom:16px;">
+                <div>
+                  <div style="font-size:0.75rem;color:var(--text-muted);">Active Staff</div>
+                  <div style="font-size:1.1rem;font-weight:700;color:var(--text);">${staffMembers.length} officers</div>
+                </div>
+                <div>
+                  <div style="font-size:0.75rem;color:var(--text-muted);">Total Load</div>
+                  <div style="font-size:1.1rem;font-weight:700;color:var(--text);">${deptComplaints.length} tickets</div>
+                </div>
+                <div>
+                  <div style="font-size:0.75rem;color:var(--amber);">Pending</div>
+                  <div style="font-size:0.95rem;font-weight:600;color:var(--amber);">${pending}</div>
+                </div>
+                <div>
+                  <div style="font-size:0.75rem;color:var(--green);">Resolved</div>
+                  <div style="font-size:0.95rem;font-weight:600;color:var(--green);">${resolved}</div>
+                </div>
+              </div>
+
+              <div>
+                <div style="font-size:0.75rem;font-weight:600;color:var(--text-muted);text-transform:uppercase;margin-bottom:6px;">Staff Members</div>
+                <div style="display:flex;flex-wrap:wrap;gap:6px;max-height:80px;overflow-y:auto;">
+                  ${staffMembers.length === 0 ? `
+                    <span style="font-size:0.8rem;color:var(--text-muted);font-style:italic;">No staff officers assigned</span>
+                  ` : staffMembers.map(s => `
+                    <span class="dept-pill" style="font-size:0.75rem;">
+                      <i data-lucide="user" style="width:12px;height:12px;"></i> ${s.name}
+                    </span>
+                  `).join('')}
+                </div>
+              </div>
+            </div>
+
+            <div class="card-footer" style="padding:14px 20px;background:#F9FAFB;border-top:1px solid var(--border-light);display:flex;justify-content:flex-end;gap:8px;">
+              <button class="btn btn-secondary btn-sm" onclick="openEditDeptModal('${d.id}')">
+                <i data-lucide="edit-2"></i> Edit
+              </button>
+              <button class="btn btn-ghost btn-sm" style="color:var(--red);" onclick="confirmDeleteDept('${d.id}')">
+                <i data-lucide="trash-2"></i> Delete
+              </button>
+            </div>
+          </div>
+        `;
+      }).join('');
+      lucide.createIcons();
+    }
+
+    function openAddDeptModal() {
+      const bodyHTML = `
+        <div class="form-group" style="margin-bottom:14px;">
+          <label class="form-label">Department Name</label>
+          <input type="text" id="dept-name" class="form-control" placeholder="e.g. Health & Safety" />
+        </div>
+        <div class="form-group">
+          <label class="form-label">Description / Scope of Responsibility</label>
+          <textarea id="dept-desc" class="form-control" rows="3" placeholder="Brief explanation of what issues this department handles..."></textarea>
+        </div>
+      `;
+
+      const footerHTML = `
+        <button class="btn btn-secondary" onclick="closeModal()">Cancel</button>
+        <button class="btn btn-primary" onclick="saveNewDepartment()">Create Department</button>
+      `;
+
+      showModal('Add Municipal Department', bodyHTML, footerHTML);
+    }
+
+    function saveNewDepartment() {
+      const name = document.getElementById('dept-name').value.trim();
+      const description = document.getElementById('dept-desc').value.trim();
+
+      if (!name) {
+        showToast('Department name is required.', 'error');
+        return;
+      }
+
+      // Check duplicate
+      const existing = getDepartments().find(d => d.name.toLowerCase() === name.toLowerCase());
+      if (existing) {
+        showToast('A department with this name already exists.', 'error');
+        return;
+      }
+
+      const id = 'dept_' + name.toLowerCase().replace(/[^a-z0-9]/g, '').substring(0, 8) + Math.random().toString(36).substr(2, 3);
+      addDepartment({
+        id,
+        name,
+        description,
+        staffIds: []
+      });
+
+      closeModal();
+      showToast(`Department "${name}" created successfully.`, 'success');
+      renderDepartments();
+    }
+
+    function openEditDeptModal(deptId) {
+      const dept = getDepartmentById(deptId);
+      if (!dept) return;
+
+      const bodyHTML = `
+        <div class="form-group" style="margin-bottom:14px;">
+          <label class="form-label">Department Name</label>
+          <input type="text" id="edit-dept-name" class="form-control" value="${dept.name}" />
+        </div>
+        <div class="form-group">
+          <label class="form-label">Description</label>
+          <textarea id="edit-dept-desc" class="form-control" rows="3">${dept.description || ''}</textarea>
+        </div>
+      `;
+
+      const footerHTML = `
+        <button class="btn btn-secondary" onclick="closeModal()">Cancel</button>
+        <button class="btn btn-primary" onclick="saveEditDepartment('${dept.id}')">Save Changes</button>
+      `;
+
+      showModal(`Edit Department: ${dept.name}`, bodyHTML, footerHTML);
+    }
+
+    function saveEditDepartment(id) {
+      const name = document.getElementById('edit-dept-name').value.trim();
+      const description = document.getElementById('edit-dept-desc').value.trim();
+
+      if (!name) {
+        showToast('Department name cannot be empty.', 'error');
+        return;
+      }
+
+      const duplicate = getDepartments().find(d => d.id !== id && d.name.toLowerCase() === name.toLowerCase());
+      if (duplicate) {
+        showToast('Another department already uses this name.', 'error');
+        return;
+      }
+
+      updateDepartment(id, { name, description });
+      closeModal();
+      showToast('Department updated successfully.', 'success');
+      renderDepartments();
+    }
+
+    function confirmDeleteDept(deptId) {
+      const dept = getDepartmentById(deptId);
+      if (!dept) return;
+
+      const linkedComplaints = getComplaints().filter(c => c.departmentId === deptId);
+      const linkedStaff = getUsers().filter(u => u.departmentId === deptId);
+
+      let warningMsg = `Are you sure you want to delete ${dept.name}?`;
+      if (linkedComplaints.length > 0 || linkedStaff.length > 0) {
+        warningMsg += ` Note: ${linkedComplaints.length} complaints and ${linkedStaff.length} staff members are assigned to this department. Their department association will be unassigned.`;
+      }
+
+      showConfirmDialog(
+        'Delete Department',
+        warningMsg,
+        () => {
+          // Unlink complaints
+          linkedComplaints.forEach(c => updateComplaint(c.id, { departmentId: null }));
+          // Unlink staff
+          linkedStaff.forEach(u => updateUser(u.id, { departmentId: null }));
+          deleteDepartment(deptId);
+
+          showToast(`Department "${dept.name}" deleted.`, 'success');
+          renderDepartments();
+        },
+        'Delete',
+        'danger'
+      );
+    }
+  </script>
+</body>
+</html>

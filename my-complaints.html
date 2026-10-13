@@ -1,0 +1,153 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>My Complaints — SCMS</title>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="css/style.css">
+  <link rel="stylesheet" href="css/responsive.css">
+  <script src="https://unpkg.com/lucide@latest/dist/umd/lucide.js"></script>
+</head>
+<body>
+  <div class="dashboard-layout">
+    <aside class="sidebar" id="sidebar"></aside>
+    <div class="main-content">
+      <header class="topbar" id="topbar"></header>
+      <main class="page-content">
+        <div class="page-header">
+          <h1>My Complaints</h1>
+          <a href="new-complaint.html" class="btn btn-primary"><i data-lucide="plus-circle"></i> New Complaint</a>
+        </div>
+
+        <div class="filter-bar">
+          <div class="search-input">
+            <i data-lucide="search"></i>
+            <input type="text" id="search" class="form-control" placeholder="Search by ID or title…">
+          </div>
+          <select id="filter-status" class="form-control">
+            <option value="">All Status</option>
+            <option value="Pending">Pending</option>
+            <option value="Assigned">Assigned</option>
+            <option value="In Progress">In Progress</option>
+            <option value="Resolved">Resolved</option>
+            <option value="Closed">Closed</option>
+          </select>
+          <select id="filter-category" class="form-control">
+            <option value="">All Categories</option>
+            <option value="Infrastructure">Infrastructure</option>
+            <option value="Water Supply">Water Supply</option>
+            <option value="Electricity">Electricity</option>
+            <option value="Sanitation">Sanitation</option>
+            <option value="Transportation">Transportation</option>
+            <option value="Public Safety">Public Safety</option>
+            <option value="Other">Other</option>
+          </select>
+          <select id="filter-priority" class="form-control">
+            <option value="">All Priorities</option>
+            <option value="Low">Low</option>
+            <option value="Medium">Medium</option>
+            <option value="High">High</option>
+            <option value="Urgent">Urgent</option>
+          </select>
+          <select id="sort-order" class="form-control">
+            <option value="newest">Newest First</option>
+            <option value="oldest">Oldest First</option>
+          </select>
+        </div>
+
+        <div id="complaints-container"></div>
+        <div id="pagination-container"></div>
+      </main>
+    </div>
+  </div>
+
+  <script src="js/storage.js"></script>
+  <script src="js/auth.js"></script>
+  <script src="js/ui.js"></script>
+  <script>
+    let currentPage = 1;
+    const PER_PAGE = 8;
+
+    document.addEventListener('DOMContentLoaded', () => {
+      const session = requireAuth(['citizen']);
+      if (!session) return;
+      renderDashboardLayout('citizen', 'my-complaints');
+      lucide.createIcons();
+
+      // Event listeners for filters
+      ['search', 'filter-status', 'filter-category', 'filter-priority', 'sort-order'].forEach(id => {
+        document.getElementById(id).addEventListener(id === 'search' ? 'input' : 'change', () => { currentPage = 1; renderComplaints(); });
+      });
+
+      renderComplaints();
+    });
+
+    function getFilteredComplaints() {
+      const session = getSession();
+      let complaints = getComplaintsByUser(session.userId);
+
+      const search = document.getElementById('search').value.toLowerCase();
+      const status = document.getElementById('filter-status').value;
+      const category = document.getElementById('filter-category').value;
+      const priority = document.getElementById('filter-priority').value;
+      const sort = document.getElementById('sort-order').value;
+
+      if (search) complaints = complaints.filter(c => c.id.toLowerCase().includes(search) || c.title.toLowerCase().includes(search));
+      if (status) complaints = complaints.filter(c => c.status === status);
+      if (category) complaints = complaints.filter(c => c.category === category);
+      if (priority) complaints = complaints.filter(c => c.priority === priority);
+
+      complaints.sort((a, b) => sort === 'newest'
+        ? new Date(b.createdAt) - new Date(a.createdAt)
+        : new Date(a.createdAt) - new Date(b.createdAt)
+      );
+
+      return complaints;
+    }
+
+    function renderComplaints() {
+      const container = document.getElementById('complaints-container');
+      const paginationEl = document.getElementById('pagination-container');
+      const filtered = getFilteredComplaints();
+      const { items, totalPages } = paginate(filtered, currentPage, PER_PAGE);
+
+      if (filtered.length === 0) {
+        container.innerHTML = emptyState('file-text', 'No complaints found', 'Try adjusting your filters or submit a new complaint.', '<a href="new-complaint.html" class="btn btn-primary btn-sm"><i data-lucide="plus-circle"></i> New Complaint</a>');
+        paginationEl.innerHTML = '';
+        lucide.createIcons();
+        return;
+      }
+
+      container.innerHTML = `
+        <div class="complaint-list">
+          ${items.map(c => `
+            <a href="complaint-details.html?id=${c.id}" class="complaint-card">
+              <span class="complaint-id-badge">${c.id}</span>
+              <div class="complaint-meta">
+                <div class="complaint-title">${c.title}</div>
+                <div class="complaint-info">
+                  <span><i data-lucide="${getCategoryIcon(c.category)}" style="width:12px;height:12px;vertical-align:middle;margin-right:2px;"></i> ${c.category}</span>
+                  <span><i data-lucide="map-pin" style="width:12px;height:12px;vertical-align:middle;margin-right:2px;"></i> ${truncate(c.location, 30)}</span>
+                  <span>${timeAgo(c.createdAt)}</span>
+                </div>
+              </div>
+              ${priorityBadge(c.priority)}
+              ${statusBadge(c.status)}
+            </a>
+          `).join('')}
+        </div>
+      `;
+
+      renderPagination(paginationEl, currentPage, totalPages, goToPage);
+      lucide.createIcons();
+    }
+
+    function goToPage(page) {
+      currentPage = page;
+      renderComplaints();
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    }
+  </script>
+</body>
+</html>
